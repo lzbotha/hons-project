@@ -12,7 +12,7 @@ SRCEXT := cpp
 SOURCES := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
 CPPFLAGS := -g -std=c++11 $(shell root-config --cflags)
-LIB := -lcppunit $(shell root-config --libs)
+LIB := -lcppunit -lassimp $(shell root-config --libs)
 INC := -g $(shell root-config --ldflags)
 
 $(TARGET): $(OBJECTS)
