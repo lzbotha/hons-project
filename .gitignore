@@ -8,6 +8,9 @@ bin/*
 # Ignore Mac specific files
 .DS_Store
 
+# Ignore meshes
+meshes
+
 # Compiled Object files
 *.slo
 *.lo
