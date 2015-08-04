@@ -43,8 +43,8 @@ bool mesh::export_to_file(const std::string& format, const std::string& filepath
 }
 
 bool mesh::prune() {
-    aiVector3D n(0.0f, 1.0f, 0.0f);
-    // n.Normalize();
+    aiVector3D n(0.0f, 0.0f, 1.0f);
+    // std::cout << n[0] << " " << n[1] << " " << n[2] << std::endl;
 
     if (scene->mNumMeshes != 1)
         return false;
@@ -56,7 +56,18 @@ bool mesh::prune() {
     aiVector3D * new_normals = new aiVector3D[mesh->mNumFaces];
 
     for (int i = 0; i < mesh->mNumFaces; ++i) {
-        if (utils::angle_between(n, mesh->mNormals[i]) < 0.785398163f / 2) {
+        // std::cout << i << std::endl;
+        float angle = utils::angle_between(
+            n, 
+            getFaceNormal(mesh->mFaces[i])
+        );
+        // std::cout << angle << std::endl;
+        // std::cout << mesh->mNormals[i][0] << " " << mesh->mNormals[i][1] << " " << mesh->mNormals[i][2] << "\tangle: " << angle << std::endl;
+
+        if (angle < 0.785398163f / 2) {
+
+            // std::cout << mesh->mNormals[i][0] << " " << mesh->mNormals[i][1] << " " << mesh->mNormals[i][2] << std::endl;
+
             new_faces[num_new] = mesh->mFaces[i];
             new_normals[num_new] = mesh->mNormals[i];
             ++num_new;
@@ -71,4 +82,15 @@ bool mesh::prune() {
     mesh->mNormals = std::move(new_normals);
 
     return true;
+}
+
+aiVector3D mesh::getFaceNormal(const aiFace & face) {
+    aiVector3D n(0,0,0);
+
+    for (int i = 0; i < face.mNumIndices; ++i) {
+        aiMesh * mesh = scene->mMeshes[0];
+        n += mesh->mNormals[face.mIndices[i]];
+    }
+
+    return n /= face.mNumIndices;
 }

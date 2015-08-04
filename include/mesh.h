@@ -12,6 +12,7 @@ class mesh {
         bool import_from_file(const std::string& filepath);
         bool export_to_file(const std::string& format, const std::string& filepath);
 
+        aiVector3D getFaceNormal(const aiFace & face);
         bool prune();
 };
 
