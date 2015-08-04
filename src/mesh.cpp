@@ -43,7 +43,7 @@ bool mesh::export_to_file(const std::string& format, const std::string& filepath
 }
 
 bool mesh::prune() {
-    aiVector3D n(0.0f, 0.0f, 1.0f);
+    aiVector3D n(0.0f, 1.0f, 0.0f);
     // std::cout << n[0] << " " << n[1] << " " << n[2] << std::endl;
 
     if (scene->mNumMeshes != 1)
