@@ -41,7 +41,7 @@ clean:
 
 # Tests
 tests: $(TESTOBJECTS)
-	$(CXX) $^ -o $(TESTTARGET) $(LIB)
+	$(CXX) $^ build/utils.o -o $(TESTTARGET) $(LIB)
 	
 
 .PHONY: clean

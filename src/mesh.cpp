@@ -6,6 +6,7 @@
 #include <math.h>
 
 #include "../include/mesh.h"
+#include "../include/utils.h"
 
 bool mesh::import_from_file(const std::string& filepath) {
     Assimp::Importer importer;
@@ -41,17 +42,6 @@ bool mesh::export_to_file(const std::string& format, const std::string& filepath
     return false;
 }
 
-float dot(const aiVector3D & a, const aiVector3D & b) {
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-}
-
-float angle_between(const aiVector3D & a, const aiVector3D & b) {
-    return acos(
-        dot(a, b) /
-        (a.Length() * b.Length())
-    );
-}
-
 bool mesh::prune() {
     aiVector3D n(0.0f, 1.0f, 0.0f);
     // n.Normalize();
@@ -66,7 +56,7 @@ bool mesh::prune() {
     aiVector3D * new_normals = new aiVector3D[mesh->mNumFaces];
 
     for (int i = 0; i < mesh->mNumFaces; ++i) {
-        if (angle_between(n, mesh->mNormals[i]) < 0.785398163f / 2) {
+        if (utils::angle_between(n, mesh->mNormals[i]) < 0.785398163f / 2) {
             new_faces[num_new] = mesh->mFaces[i];
             new_normals[num_new] = mesh->mNormals[i];
             ++num_new;
