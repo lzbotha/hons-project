@@ -11,11 +11,11 @@ void TestMesh::tearDown() {
     
 }
 
-void TestMesh::testPopulateFromSTL(){
+void TestMesh::testReadFile(){
     
 }
 
-void TestMesh::testWriteSTL() {
+void TestMesh::testWriteFile() {
 
 }
 
@@ -23,6 +23,11 @@ void TestMesh::testPrune() {
 
 }
 
-void TestMesh::testMergeVerts(){
+void TestMesh::testMergeVerts() {
+
+}
+
+
+void TestMesh::testSetupNeighbouringTriangles() {
 
 }

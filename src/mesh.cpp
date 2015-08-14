@@ -4,9 +4,15 @@
 
 #include <iostream>
 #include <math.h>
+#include <unordered_set>
+#include <unordered_map>
 
 #include "../include/mesh.h"
 #include "../include/utils.h"
+
+mesh::mesh() : neighbouring_triangles(std::unordered_map<int, std::unordered_set<int>>()) {
+
+}
 
 bool mesh::import_from_file(const std::string& filepath) {
     Assimp::Importer importer;
@@ -44,7 +50,6 @@ bool mesh::export_to_file(const std::string& format, const std::string& filepath
 
 bool mesh::prune() {
     aiVector3D n(0.0f, 1.0f, 0.0f);
-    // std::cout << n[0] << " " << n[1] << " " << n[2] << std::endl;
 
     if (scene->mNumMeshes != 1)
         return false;
@@ -56,17 +61,12 @@ bool mesh::prune() {
     aiVector3D * new_normals = new aiVector3D[mesh->mNumFaces];
 
     for (int i = 0; i < mesh->mNumFaces; ++i) {
-        // std::cout << i << std::endl;
         float angle = utils::angle_between(
             n, 
-            getFaceNormal(mesh->mFaces[i])
+            get_face_normal(mesh->mFaces[i])
         );
-        // std::cout << angle << std::endl;
-        // std::cout << mesh->mNormals[i][0] << " " << mesh->mNormals[i][1] << " " << mesh->mNormals[i][2] << "\tangle: " << angle << std::endl;
 
         if (angle < 0.785398163f / 2) {
-
-            // std::cout << mesh->mNormals[i][0] << " " << mesh->mNormals[i][1] << " " << mesh->mNormals[i][2] << std::endl;
 
             new_faces[num_new] = mesh->mFaces[i];
             new_normals[num_new] = mesh->mNormals[i];
@@ -84,7 +84,7 @@ bool mesh::prune() {
     return true;
 }
 
-aiVector3D mesh::getFaceNormal(const aiFace & face) {
+aiVector3D mesh::get_face_normal(const aiFace & face) {
     aiVector3D n(0,0,0);
 
     for (int i = 0; i < face.mNumIndices; ++i) {
@@ -93,4 +93,63 @@ aiVector3D mesh::getFaceNormal(const aiFace & face) {
     }
 
     return n /= face.mNumIndices;
+}
+
+void mesh::setup_neighbouring_triangles() {
+    using namespace std;
+    cout << "triangle neighbour start" << endl;
+    aiMesh * mesh = scene->mMeshes[0];
+
+    // make a map from edges to triangles
+    // TODO: consider making the key an unordered_set/pair
+    unordered_map<string, unordered_set<int>> edge_to_triangle_map;
+
+    for (int f_index = 0 ; f_index < mesh->mNumFaces; ++f_index) {
+        aiFace & f = mesh->mFaces[f_index];
+
+        for (int v = 0; v < f.mNumIndices; ++v) {
+            int v1 = f.mIndices[v];
+            int v2 = f.mIndices[(v + 1) % f.mNumIndices];
+            
+            // If the edge is in the set append this triangle
+            if (edge_to_triangle_map.find(to_string(v1) + ":" + to_string(v2)) != edge_to_triangle_map.end()) {
+                edge_to_triangle_map[to_string(v1) + ":" + to_string(v2)].emplace(f_index);
+            }
+            // If the edge is in the set append this triangle
+            else if (edge_to_triangle_map.find(to_string(v2) + ":" + to_string(v1)) != edge_to_triangle_map.end()) {
+                edge_to_triangle_map[to_string(v2) + ":" + to_string(v1)].emplace(f_index);
+            }
+            // If the edge does not appear at all in the mapping add it
+            else {
+                edge_to_triangle_map.emplace(
+                    to_string(v1) + ":" + to_string(v2),
+                    unordered_set<int>({f_index})
+                );
+            }
+        }
+
+        neighbouring_triangles.emplace(f_index, unordered_set<int>());
+    }
+
+    for (int f_index = 0 ; f_index < mesh->mNumFaces; ++f_index) {
+        aiFace & f = mesh->mFaces[f_index];
+
+        for (int v = 0; v < f.mNumIndices; ++v) {
+            int v1 = f.mIndices[v];
+            int v2 = f.mIndices[(v + 1) % f.mNumIndices];
+
+            if (edge_to_triangle_map.find(to_string(v1) + ":" + to_string(v2)) != edge_to_triangle_map.end()) {
+                for (int t : edge_to_triangle_map[to_string(v1) + ":" + to_string(v2)]) {
+                    neighbouring_triangles[f_index].emplace(t);
+                }
+            }
+            else {
+                for (int t: edge_to_triangle_map[to_string(v2) + ":" + to_string(v1)]) {
+                    neighbouring_triangles[f_index].emplace(t);
+                }
+            }
+        }
+    }    
+
+    cout << "triangle neighbour end" << endl;
 }
