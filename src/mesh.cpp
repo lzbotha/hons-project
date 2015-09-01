@@ -100,6 +100,9 @@ void mesh::setup_neighbouring_triangles() {
     cout << "triangle neighbour start" << endl;
     aiMesh * mesh = scene->mMeshes[0];
 
+    // cout << "There are this many faces: " << mesh->mNumFaces << endl;
+    // cout << "There are this many vertices: " << mesh->mNumVertices << endl;
+
     // make a map from edges to triangles
     // TODO: consider making the key an unordered_set/pair
     unordered_map<string, unordered_set<int>> edge_to_triangle_map;
@@ -107,30 +110,44 @@ void mesh::setup_neighbouring_triangles() {
     for (int f_index = 0 ; f_index < mesh->mNumFaces; ++f_index) {
         aiFace & f = mesh->mFaces[f_index];
 
+        // cout << "Face: " << f_index << endl;
+
         for (int v = 0; v < f.mNumIndices; ++v) {
             int v1 = f.mIndices[v];
             int v2 = f.mIndices[(v + 1) % f.mNumIndices];
+
+            string v_1 = to_string(mesh->mVertices[v1].x) + " " + to_string(mesh->mVertices[v1].y) + " " + to_string(mesh->mVertices[v1].z);
+            string v_2 = to_string(mesh->mVertices[v2].x) + " " + to_string(mesh->mVertices[v2].y) + " " + to_string(mesh->mVertices[v2].z);
+
+            // cout << "Edge in face " << f_index  << " : " << (v_1 + ":" + v_2) << endl;
             
             // If the edge is in the set append this triangle
-            if (edge_to_triangle_map.find(to_string(v1) + ":" + to_string(v2)) != edge_to_triangle_map.end()) {
-                edge_to_triangle_map[to_string(v1) + ":" + to_string(v2)].emplace(f_index);
+            if (edge_to_triangle_map.find(v_1 + ":" + v_2) != edge_to_triangle_map.end()) {
+                edge_to_triangle_map[v_1 + ":" + v_2].emplace(f_index);
+
+                // cout << "found edge" << endl;
             }
             // If the edge is in the set append this triangle
-            else if (edge_to_triangle_map.find(to_string(v2) + ":" + to_string(v1)) != edge_to_triangle_map.end()) {
-                edge_to_triangle_map[to_string(v2) + ":" + to_string(v1)].emplace(f_index);
+            else if (edge_to_triangle_map.find(v_2 + ":" + v_1) != edge_to_triangle_map.end()) {
+                edge_to_triangle_map[v_2 + ":" + v_1].emplace(f_index);
+
+                // cout << "found edge" << endl;
             }
             // If the edge does not appear at all in the mapping add it
             else {
                 edge_to_triangle_map.emplace(
-                    to_string(v1) + ":" + to_string(v2),
+                    v_1 + ":" + v_2,
                     unordered_set<int>({f_index})
                 );
+
+                // cout << "inserting edge" << endl;
             }
         }
 
         neighbouring_triangles.emplace(f_index, unordered_set<int>());
     }
 
+    // Iterate over triangles again using the edge_to_triangle_map to add neighbouring triangles
     for (int f_index = 0 ; f_index < mesh->mNumFaces; ++f_index) {
         aiFace & f = mesh->mFaces[f_index];
 
@@ -138,18 +155,23 @@ void mesh::setup_neighbouring_triangles() {
             int v1 = f.mIndices[v];
             int v2 = f.mIndices[(v + 1) % f.mNumIndices];
 
-            if (edge_to_triangle_map.find(to_string(v1) + ":" + to_string(v2)) != edge_to_triangle_map.end()) {
-                for (int t : edge_to_triangle_map[to_string(v1) + ":" + to_string(v2)]) {
-                    neighbouring_triangles[f_index].emplace(t);
+            string v_1 = to_string(mesh->mVertices[v1].x) + " " + to_string(mesh->mVertices[v1].y) + " " + to_string(mesh->mVertices[v1].z);
+            string v_2 = to_string(mesh->mVertices[v2].x) + " " + to_string(mesh->mVertices[v2].y) + " " + to_string(mesh->mVertices[v2].z);
+
+            if (edge_to_triangle_map.find(v_1 + ":" + v_2) != edge_to_triangle_map.end()) {
+                for (int t : edge_to_triangle_map[v_1 + ":" + v_2]) {
+                    if (t != f_index)
+                        neighbouring_triangles[f_index].emplace(t);
                 }
             }
             else {
-                for (int t: edge_to_triangle_map[to_string(v2) + ":" + to_string(v1)]) {
-                    neighbouring_triangles[f_index].emplace(t);
+                for (int t: edge_to_triangle_map[v_2 + ":" + v_1]) {
+                    if (t != f_index)
+                        neighbouring_triangles[f_index].emplace(t);
                 }
             }
         }
-    }    
+    } 
 
     cout << "triangle neighbour end" << endl;
 }

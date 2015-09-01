@@ -4,6 +4,8 @@
 #include <cppunit/TestFixture.h>
 #include <cppunit/extensions/HelperMacros.h>
 
+#include "../include/mesh.h"
+
 class TestMesh : public CppUnit::TestFixture {
 
     CPPUNIT_TEST_SUITE(TestMesh);
@@ -15,7 +17,7 @@ class TestMesh : public CppUnit::TestFixture {
     CPPUNIT_TEST_SUITE_END();
 
     private:
-
+        mesh * m;
 
     public:
         // Memory managemenet stuff

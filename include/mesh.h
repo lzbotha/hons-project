@@ -9,9 +9,10 @@
 class mesh {
     private:
         aiScene * scene;
-        std::unordered_map<int, std::unordered_set<int>> neighbouring_triangles;
     
     public:
+        std::unordered_map<int, std::unordered_set<int>> neighbouring_triangles;
+        
         mesh();
 
         bool import_from_file(const std::string& filepath);
