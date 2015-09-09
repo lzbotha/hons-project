@@ -45,3 +45,11 @@ void TestMesh::testSetupNeighbouringTriangles() {
         cout << endl;
     }
 }
+
+void TestMesh::testCullChunks() {
+    using namespace std;
+    m->import_from_file("meshes/tests/pyramid.obj");
+    m->setup_neighbouring_triangles();
+
+    m->cull_chunks(5);       
+}

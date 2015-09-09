@@ -14,6 +14,7 @@ class TestMesh : public CppUnit::TestFixture {
     CPPUNIT_TEST(testPrune);
     CPPUNIT_TEST(testMergeVerts);
     CPPUNIT_TEST(testSetupNeighbouringTriangles);
+    CPPUNIT_TEST(testCullChunks);
     CPPUNIT_TEST_SUITE_END();
 
     private:
@@ -30,6 +31,7 @@ class TestMesh : public CppUnit::TestFixture {
         void testPrune();
         void testMergeVerts();
         void testSetupNeighbouringTriangles();
+        void testCullChunks();
         
 };
 
