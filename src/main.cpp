@@ -10,8 +10,8 @@ int main() {
     cout << m.import_from_file("meshes/petra/Buildings/Wadi_Farasa/Whole_Area/Wadi_Model_GPS_with_constant.obj") << endl;
     cout << m.prune() << endl;
     cout << m.setup_neighbouring_triangles() << endl;
-    // cout << m.cull_chunks(100) << endl;
-    cout << m.export_to_file("obj" ,"meshes/wadi_farasa_test2.obj") << endl;
+    cout << m.cull_chunks(100) << endl;
+    cout << m.export_to_file("obj" ,"meshes/wadi_farasa_test.obj") << endl;
 
     return 0;
 }

@@ -40,23 +40,32 @@ bool mesh::import_from_file(const std::string& filepath) {
 bool mesh::export_to_file(const std::string& format, const std::string& filepath) {
     Assimp::Exporter exporter;
 
-    if(AI_SUCCESS == exporter.Export(this->scene, format, filepath)) {
+    aiScene * temp;
+    aiCopyScene(this->scene, &temp);
+    keep_faces(this->walkable_faces, temp);
+
+    if(AI_SUCCESS == exporter.Export(temp, format, filepath)) {
         return true;
     }
 
     std::cerr << exporter.GetErrorString() << std::endl;
     return false;
+
+    delete temp;
 }
 
-void mesh::delete_faces(std::unordered_set<int> & to_delete) {
-    aiMesh * mesh = scene->mMeshes[0];
+bool mesh::is_walkable(int f) {
+    return walkable_faces.find(f) != walkable_faces.end();
+}
+
+void mesh::keep_faces(std::unordered_set<int> & to_keep, aiScene * s) {
+    aiMesh * mesh = s->mMeshes[0];
 
     int num_new = 0;
     aiFace * new_faces = new aiFace[mesh->mNumFaces];
 
     for (int i = 0; i < mesh->mNumFaces; ++i) {
-        if (to_delete.find(i) == to_delete.end()) {
-
+        if (to_keep.find(i) != to_keep.end()) {
             new_faces[num_new] = mesh->mFaces[i];
             ++num_new;
         }
@@ -68,7 +77,33 @@ void mesh::delete_faces(std::unordered_set<int> & to_delete) {
     mesh->mFaces = std::move(new_faces);
 }
 
+// void mesh::delete_faces(std::unordered_set<int> & to_delete) {
+//     aiMesh * mesh = scene->mMeshes[0];
+
+//     int num_new = 0;
+//     aiFace * new_faces = new aiFace[mesh->mNumFaces];
+
+//     for (int i = 0; i < mesh->mNumFaces; ++i) {
+//         if (to_delete.find(i) == to_delete.end()) {
+
+//             new_faces[num_new] = mesh->mFaces[i];
+//             ++num_new;
+//         }
+//     }
+
+//     delete[] mesh->mFaces;
+
+//     mesh->mNumFaces = num_new;
+//     mesh->mFaces = std::move(new_faces);
+// }
+
+void mesh::delete_faces(std::unordered_set<int> & to_delete) {
+    for (int f : to_delete)
+        this->walkable_faces.erase(f);
+}
+
 bool mesh::prune() {
+    // TODO: make this more generic and bad in general
     aiVector3D n(0.0f, 1.0f, 0.0f);
 
     if (scene->mNumMeshes != 1)
@@ -76,26 +111,17 @@ bool mesh::prune() {
 
     aiMesh * mesh = scene->mMeshes[0];
 
-    int num_new = 0;
-    aiFace * new_faces = new aiFace[mesh->mNumFaces];
-
     for (int i = 0; i < mesh->mNumFaces; ++i) {
         float angle = utils::angle_between(
             n, 
             get_face_normal(mesh->mFaces[i])
         );
 
+        // TODO: don't hard code this either
         if (angle < 0.785398163f / 2) {
-
-            new_faces[num_new] = mesh->mFaces[i];
-            ++num_new;
+            this->walkable_faces.insert(i);
         }
     }
-
-    delete[] mesh->mFaces;
-
-    mesh->mNumFaces = num_new;
-    mesh->mFaces = std::move(new_faces);
 
     return true;
 }
@@ -113,6 +139,10 @@ aiVector3D mesh::get_face_normal(const aiFace & face) {
 
 bool mesh::setup_neighbouring_triangles() {
     using namespace std;
+
+    if (scene->mNumMeshes != 1)
+        return false;
+
     aiMesh * mesh = scene->mMeshes[0];
 
     // make a map from edges to triangles
@@ -202,16 +232,12 @@ bool mesh::cull_chunks(int min_size) {
     if (this->neighbouring_triangles.size() == 0)
         return false;
 
-    // Put all faces into a set
-    unordered_set<int> faces;
+    if (scene->mNumMeshes != 1)
+        return false;
+
+    // Put all walkable faces into a set
+    unordered_set<int> faces = this->walkable_faces;
     aiMesh * mesh = scene->mMeshes[0];
-
-    // TODO: use and stl function or something better for this
-    for (int i = 0; i < mesh->mNumFaces; ++i) {
-        faces.emplace(i);
-    }
-
-    int num_faces = faces.size();
 
     unordered_set<int> to_delete;
 
