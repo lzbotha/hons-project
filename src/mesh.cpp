@@ -6,6 +6,8 @@
 #include <math.h>
 #include <unordered_set>
 #include <unordered_map>
+#include <vector>
+#include <cmath>
 
 #include "../include/mesh.h"
 #include "../include/utils.h"
@@ -77,26 +79,6 @@ void mesh::keep_faces(std::unordered_set<int> & to_keep, aiScene * s) {
     mesh->mFaces = std::move(new_faces);
 }
 
-// void mesh::delete_faces(std::unordered_set<int> & to_delete) {
-//     aiMesh * mesh = scene->mMeshes[0];
-
-//     int num_new = 0;
-//     aiFace * new_faces = new aiFace[mesh->mNumFaces];
-
-//     for (int i = 0; i < mesh->mNumFaces; ++i) {
-//         if (to_delete.find(i) == to_delete.end()) {
-
-//             new_faces[num_new] = mesh->mFaces[i];
-//             ++num_new;
-//         }
-//     }
-
-//     delete[] mesh->mFaces;
-
-//     mesh->mNumFaces = num_new;
-//     mesh->mFaces = std::move(new_faces);
-// }
-
 void mesh::delete_faces(std::unordered_set<int> & to_delete) {
     for (int f : to_delete)
         this->walkable_faces.erase(f);
@@ -122,6 +104,206 @@ bool mesh::prune() {
             this->walkable_faces.insert(i);
         }
     }
+
+    return true;
+}
+
+float mesh::distance(int face1, int face2) {
+    aiMesh * mesh = scene->mMeshes[0];
+    
+    aiFace f1 = mesh->mFaces[face1];
+    aiVector3D f1m(0,0,0);
+    for (int i = 0; i < f1.mNumIndices; ++i)
+        f1m += mesh->mVertices[f1.mIndices[i]];
+    f1m /= f1.mNumIndices;
+
+    aiFace f2 = mesh->mFaces[face2];
+    aiVector3D f2m(0,0,0);
+    for (int i = 0; i < f2.mNumIndices; ++i)
+        f2m += mesh->mVertices[f2.mIndices[i]];
+    f2m /= f2.mNumIndices;
+
+    return sqrt(
+        pow(f1m.x - f2m.x, 2) +
+        pow(f1m.y - f2m.y, 2) +
+        pow(f1m.z - f2m.z, 2)
+    );
+}
+
+void mesh::spill(int origin_face, int current_face, std::unordered_set<int> & origin_chunk, float dist, std::vector<int> path, std::unordered_set<int> & visited, std::unordered_set<int> & to_add) {
+
+    if (origin_chunk.find(current_face) != origin_chunk.end()){
+        // std::cout << "X";
+        return;
+    }
+
+    if (distance(origin_face, current_face) > dist){
+        // std::cout << "D";
+        return;
+    }
+
+    // if the current face is walkable
+    if (walkable_faces.find(current_face) != walkable_faces.end()) {
+
+        if (origin_chunk.find(current_face) != origin_chunk.end()){
+            std::cout << "The sky is falling" << std::endl;
+        }
+
+        // add all faces
+        for (int f : path)
+            to_add.insert(f);
+
+        // std::cout << "adding some faces: " << path.size() << std::endl;
+        // std::cout << "A";
+        return;
+    }
+
+    // std::cout << "X";
+
+    for (int nf : neighbouring_triangles[current_face]) {
+        if (origin_face == nf)
+            continue;
+
+        if (visited.find(nf) != visited.end())
+            continue;
+
+        // TODO: tidy this up since it is not necessary as the method stub uses copy semantics anyway
+        // std::cout << "." << std::endl;
+        std::vector<int> new_path = path;
+        new_path.emplace_back(current_face);
+
+        visited.insert(current_face);
+
+        // std::cout << new_path.size() << std::endl;
+        // std::cout << "dist: " << distance(origin_face, current_face) << std::endl;
+        spill(origin_face, nf, origin_chunk, dist, new_path, visited, to_add);
+    }
+}
+
+bool mesh::rejoin_chunks(float distance) {
+    using namespace std;
+
+    if (this->neighbouring_triangles.size() == 0)
+        return false;
+
+    if (scene->mNumMeshes != 1)
+        return false;
+
+    // setup all chunks
+    vector<unordered_set<int>> chunks;
+
+    // Put all walkable faces into a set
+    unordered_set<int> faces = this->walkable_faces;
+    aiMesh * mesh = scene->mMeshes[0];
+
+    while (!faces.empty()) {
+
+        unordered_set<int> chunk;
+
+        // select a face
+        int f = -1;
+        std::unordered_set<int>::iterator iter = faces.begin();
+        if (iter != faces.end())
+            f = *iter;
+        else{
+            cerr << "No remaining faces" << endl;
+            cerr << faces.size() << endl;
+            break;
+        }
+
+        chunk.insert(f);
+        faces.erase(f);
+
+        // iterate over all its neighbours adding it to a local set
+        this->fill(f, faces, chunk);
+
+        // once the chunk has been populated add it to the vector of chunks
+        chunks.emplace_back(chunk);
+    }
+
+    // int prgress = 0;
+    // int size = walkable_faces.size();
+
+    unordered_set<int> to_add;
+
+    for (unordered_set<int> & c : chunks) {
+        for (int f : c) {
+            // ++prgress;
+            // std::cout << prgress << " / " << size << std::endl;
+            // std::cout << ".";
+
+            for (int nf : neighbouring_triangles[f]){
+                unordered_set<int> visited;
+                spill(f, nf, c, distance, vector<int>(), visited, to_add);
+            }
+        }
+        // prgress += c.size();
+        // std::cout << prgress << " / " << size << std::endl;
+    }
+
+    for (int f : to_add)
+        walkable_faces.insert(f);
+
+    return true;
+}
+
+bool mesh::keep_largest_chunk() {
+    using namespace std;
+
+    if (this->neighbouring_triangles.size() == 0)
+        return false;
+
+    if (scene->mNumMeshes != 1)
+        return false;
+
+    // setup all chunks
+    vector<unordered_set<int>> chunks;
+
+    // Put all walkable faces into a set
+    unordered_set<int> faces = this->walkable_faces;
+    aiMesh * mesh = scene->mMeshes[0];
+
+    while (!faces.empty()) {
+
+        unordered_set<int> chunk;
+
+        // select a face
+        int f = -1;
+        std::unordered_set<int>::iterator iter = faces.begin();
+        if (iter != faces.end())
+            f = *iter;
+        else{
+            cerr << "No remaining faces" << endl;
+            cerr << faces.size() << endl;
+            break;
+        }
+
+        chunk.insert(f);
+        faces.erase(f);
+
+        // iterate over all its neighbours adding it to a local set
+        this->fill(f, faces, chunk);
+
+        // once the chunk has been populated add it to the vector of chunks
+        chunks.emplace_back(chunk);
+    }
+
+    cout << "Number of chunks: " << chunks.size() << endl;
+
+    int size = 0;
+    int index = -1;
+
+    for (int i = 0; i < chunks.size(); ++i) {
+        cout << "chunk: " << i << endl;
+        if (chunks[i].size() > size){
+            size = chunks[i].size();
+            index = i;
+            cout << "new size: " << size << endl;
+            cout << "new index: " << index << endl;
+        }
+    }
+
+    this->walkable_faces = std::move(chunks[index]);
 
     return true;
 }
@@ -227,6 +409,8 @@ void mesh::fill(
 }
 
 bool mesh::cull_chunks(int min_size) {
+    // TODO: refactor this since all this code is duplicated
+
     using namespace std;
 
     if (this->neighbouring_triangles.size() == 0)

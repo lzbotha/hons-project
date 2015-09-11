@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_set>
 #include <unordered_map>
+#include <vector>
 
 class mesh {
     private:
@@ -30,9 +31,14 @@ class mesh {
         );
         bool cull_chunks(int min_size);
 
+        bool rejoin_chunks(float distance);
+        void spill(int origin_face, int current_face, std::unordered_set<int> & origin_chunk, float dist, std::vector<int> path, std::unordered_set<int> & visited, std::unordered_set<int> & to_add);
+        float distance(int face1, int face2);
+
         // make this method private as it is used only internally
         void keep_faces(std::unordered_set<int> & to_keep, aiScene * s);
         void delete_faces(std::unordered_set<int> & to_delete);
+        bool keep_largest_chunk();
 
         aiVector3D get_face_normal(const aiFace & face);
         bool prune();
