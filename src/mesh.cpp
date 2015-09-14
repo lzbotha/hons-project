@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 #include <cmath>
+#include <stack>
 
 #include "../include/mesh.h"
 #include "../include/utils.h"
@@ -263,6 +264,9 @@ bool mesh::keep_largest_chunk() {
     unordered_set<int> faces = this->walkable_faces;
     aiMesh * mesh = scene->mMeshes[0];
 
+    cout << "number of faces: " << faces.size() << endl;
+
+    cout << "before while loop" << endl;
     while (!faces.empty()) {
 
         unordered_set<int> chunk;
@@ -282,7 +286,26 @@ bool mesh::keep_largest_chunk() {
         faces.erase(f);
 
         // iterate over all its neighbours adding it to a local set
-        this->fill(f, faces, chunk);
+        stack<int> to_process;
+        to_process.emplace(f);
+
+        // TODO: change this to use .empty instead
+        while (to_process.size() > 0) {
+            int face = to_process.top();
+            to_process.pop();
+
+            // if all the neighbours of this face are already in chunk return
+            for (int nf : neighbouring_triangles[face]) {
+                if (faces.find(nf) != faces.end()) {
+                    // recurse further
+                    faces.erase(nf);
+                    chunk.insert(nf);
+                    // std::cout << faces.size() << std::endl;
+
+                    to_process.emplace(nf);
+                }
+            }
+        }
 
         // once the chunk has been populated add it to the vector of chunks
         chunks.emplace_back(chunk);
@@ -294,7 +317,6 @@ bool mesh::keep_largest_chunk() {
     int index = -1;
 
     for (int i = 0; i < chunks.size(); ++i) {
-        cout << "chunk: " << i << endl;
         if (chunks[i].size() > size){
             size = chunks[i].size();
             index = i;
@@ -403,6 +425,7 @@ void mesh::fill(
             // recurse further
             faces.erase(nf);
             chunk.insert(nf);
+            // std::cout << faces.size() << std::endl;
             this->fill(nf, faces, chunk);
         }
     }
