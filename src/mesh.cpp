@@ -9,6 +9,7 @@
 #include <vector>
 #include <cmath>
 #include <stack>
+#include <queue>
 
 #include "../include/mesh.h"
 #include "../include/utils.h"
@@ -181,6 +182,29 @@ void mesh::spill(int origin_face, int current_face, std::unordered_set<int> & or
     }
 }
 
+struct S
+{
+    int face;
+    float dist;
+
+    S(int face, float dist) : face(face), dist(dist)
+    {
+    }
+
+    bool operator<(const struct S& other) const
+    {
+        //Your priority logic goes here
+        return dist < other.dist;
+    }
+};
+
+void better_spill(int f) {
+    using namespace std;
+
+    priority_queue<S> pq;
+
+}
+
 bool mesh::rejoin_chunks(float distance) {
     using namespace std;
 
@@ -222,24 +246,16 @@ bool mesh::rejoin_chunks(float distance) {
         chunks.emplace_back(chunk);
     }
 
-    // int prgress = 0;
-    // int size = walkable_faces.size();
-
     unordered_set<int> to_add;
 
     for (unordered_set<int> & c : chunks) {
         for (int f : c) {
-            // ++prgress;
-            // std::cout << prgress << " / " << size << std::endl;
-            // std::cout << ".";
 
             for (int nf : neighbouring_triangles[f]){
                 unordered_set<int> visited;
                 spill(f, nf, c, distance, vector<int>(), visited, to_add);
             }
         }
-        // prgress += c.size();
-        // std::cout << prgress << " / " << size << std::endl;
     }
 
     for (int f : to_add)
