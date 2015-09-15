@@ -198,11 +198,67 @@ struct S
     }
 };
 
-void better_spill(int f) {
+void mesh::better_spill(int f, std::unordered_set<int> & to_add, float distancee, std::unordered_set<int> & chunk) {
     using namespace std;
 
+    // If this polygon is surrounded by only polygons in the same chunk skip it
+    bool surrounded = true;
+    for (int n : neighbouring_triangles[f])
+        surrounded &= !(chunk.count(n) == 0);
+
+    if (surrounded)
+        return;
+
+    unordered_map<int, float> dist;
+    unordered_map<int, int> prev;
     priority_queue<S> pq;
 
+    pq.push(S(f, 0.0f));
+
+    while(!pq.empty()) {
+        S min = pq.top();
+        pq.pop();
+
+        for (int n : neighbouring_triangles[min.face]) {
+            S alt(n, distance(f, n));
+
+            // Cuttoffs
+            // Max step distance is exceeded
+            if (alt.dist > distancee)
+                continue;
+
+            // Polygon is a part of the current chunk
+            if (chunk.count(n) > 0)
+                continue;
+
+            if (dist.count(alt.face) == 0) {
+                dist.emplace(alt.face, alt.dist);
+                prev.emplace(alt.face, min.face);
+
+                pq.push(alt);
+            }
+            else if (alt.dist < dist[alt.face]) {
+                dist.emplace(alt.face, alt.dist);
+                prev.emplace(alt.face, min.face);
+
+                pq.push(alt);
+            }
+        }
+    }
+
+    for(auto kv : prev) {
+        // If the polygon is walkable AND not in the same chunk as the starting point
+        if ((walkable_faces.count(kv.first) > 0) and chunk.count(kv.first) == 0) {
+            int curr = kv.first;
+
+            while (curr != f){
+                to_add.insert(prev[curr]);
+
+                if (prev.count(curr) > 0)
+                    curr = prev[curr];
+            }
+        }
+    }
 }
 
 bool mesh::rejoin_chunks(float distance) {
@@ -248,13 +304,19 @@ bool mesh::rejoin_chunks(float distance) {
 
     unordered_set<int> to_add;
 
+    int size = 0;
+    for (unordered_set<int> & c : chunks) {
+        size += c.size();
+    }
+
+    int t_size = size;
+
     for (unordered_set<int> & c : chunks) {
         for (int f : c) {
 
-            for (int nf : neighbouring_triangles[f]){
-                unordered_set<int> visited;
-                spill(f, nf, c, distance, vector<int>(), visited, to_add);
-            }
+            size--;
+            cout << size << " / " << t_size << endl;
+            better_spill(f, to_add, distance, c);
         }
     }
 

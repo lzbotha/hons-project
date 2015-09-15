@@ -33,6 +33,7 @@ class mesh {
 
         bool rejoin_chunks(float distance);
         void spill(int origin_face, int current_face, std::unordered_set<int> & origin_chunk, float dist, std::vector<int> path, std::unordered_set<int> & visited, std::unordered_set<int> & to_add);
+        void better_spill(int f, std::unordered_set<int> & to_add, float distancee, std::unordered_set<int> & chunk);
         float distance(int face1, int face2);
 
         // make this method private as it is used only internally

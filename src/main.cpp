@@ -11,7 +11,7 @@ int main() {
     cout << m.prune() << endl;
     cout << m.setup_neighbouring_triangles() << endl;
     cout << "rejoining chunks" << endl;
-    cout << m.rejoin_chunks(1.0f) << endl;
+    cout << m.rejoin_chunks(0.5f) << endl;
     cout << "chunks rejoined" << endl;
     // cout << m.cull_chunks(100) << endl;
     cout << m.keep_largest_chunk() << endl;
