@@ -86,7 +86,7 @@ void mesh::delete_faces(std::unordered_set<int> & to_delete) {
         this->walkable_faces.erase(f);
 }
 
-bool mesh::prune() {
+bool mesh::prune(float delta_angle) {
     // TODO: make this more generic and bad in general
     aiVector3D n(0.0f, 1.0f, 0.0f);
 
@@ -102,7 +102,8 @@ bool mesh::prune() {
         );
 
         // TODO: don't hard code this either
-        if (angle < 0.785398163f / 2) {
+        // if (angle < 0.785398163f / 2) {
+        if (angle < delta_angle) {
             this->walkable_faces.insert(i);
         }
     }
@@ -221,6 +222,7 @@ void mesh::better_spill(int f, std::unordered_set<int> & to_add, float distancee
 
         for (int n : neighbouring_triangles[min.face]) {
             S alt(n, distance(f, n));
+            // S alt(n, min.dist + 1.0f);
 
             // Cuttoffs
             // Max step distance is exceeded
@@ -228,8 +230,8 @@ void mesh::better_spill(int f, std::unordered_set<int> & to_add, float distancee
                 continue;
 
             // Polygon is a part of the current chunk
-            if (chunk.count(n) > 0)
-                continue;
+            // if (chunk.count(n) > 0)
+            //     continue;
 
             if (dist.count(alt.face) == 0) {
                 dist.emplace(alt.face, alt.dist);
@@ -248,7 +250,8 @@ void mesh::better_spill(int f, std::unordered_set<int> & to_add, float distancee
 
     for(auto kv : prev) {
         // If the polygon is walkable AND not in the same chunk as the starting point
-        if ((walkable_faces.count(kv.first) > 0) and chunk.count(kv.first) == 0) {
+        // if ((walkable_faces.count(kv.first) > 0) and chunk.count(kv.first) == 0) {
+        if (walkable_faces.count(kv.first) > 0) {
             int curr = kv.first;
 
             while (curr != f){
@@ -304,18 +307,18 @@ bool mesh::rejoin_chunks(float distance) {
 
     unordered_set<int> to_add;
 
-    int size = 0;
-    for (unordered_set<int> & c : chunks) {
-        size += c.size();
-    }
+    // int size = 0;
+    // for (unordered_set<int> & c : chunks) {
+    //     size += c.size();
+    // }
 
-    int t_size = size;
+    // int t_size = size;
 
     for (unordered_set<int> & c : chunks) {
         for (int f : c) {
 
-            size--;
-            cout << size << " / " << t_size << endl;
+            // size--;
+            // cout << size << " / " << t_size << endl;
             better_spill(f, to_add, distance, c);
         }
     }
@@ -363,6 +366,7 @@ bool mesh::keep_largest_chunk() {
         chunk.insert(f);
         faces.erase(f);
 
+        // TODO: figure out if this is just fill and if so replace it
         // iterate over all its neighbours adding it to a local set
         stack<int> to_process;
         to_process.emplace(f);
@@ -491,20 +495,49 @@ bool mesh::setup_neighbouring_triangles() {
     return true;
 }
 
+// void mesh::fill(
+//     int f,
+//     std::unordered_set<int> & faces,
+//     std::unordered_set<int> & chunk
+//     )
+// {
+//     // if all the neighbours of this face are already in chunk return
+//     for (int nf : neighbouring_triangles[f]) {
+//         if (faces.find(nf) != faces.end()) {
+//             // recurse further
+//             faces.erase(nf);
+//             chunk.insert(nf);
+//             // std::cout << faces.size() << std::endl;
+//             this->fill(nf, faces, chunk);
+//         }
+//     }
+// }
+
 void mesh::fill(
     int f,
     std::unordered_set<int> & faces,
     std::unordered_set<int> & chunk
     )
 {
-    // if all the neighbours of this face are already in chunk return
-    for (int nf : neighbouring_triangles[f]) {
-        if (faces.find(nf) != faces.end()) {
-            // recurse further
-            faces.erase(nf);
-            chunk.insert(nf);
-            // std::cout << faces.size() << std::endl;
-            this->fill(nf, faces, chunk);
+    // iterate over all its neighbours adding it to a local set
+    std::stack<int> to_process;
+    to_process.emplace(f);
+
+    // TODO: change this to use .empty instead
+    while (to_process.size() > 0) {
+        int face = to_process.top();
+        to_process.pop();
+
+        // if all the neighbours of this face are already in chunk return
+        for (int nf : neighbouring_triangles[face]) {
+            if (faces.find(nf) != faces.end()) {
+                // recurse further
+                faces.erase(nf);
+                chunk.insert(nf);
+                // std::cout << faces.size() << std::endl;
+
+                to_process.emplace(nf);
+            }
         }
     }
 }
@@ -556,4 +589,19 @@ bool mesh::cull_chunks(int min_size) {
     this->delete_faces(to_delete);
 
     return true;
+}
+
+void mesh::color_walkable_faces() {
+    using namespace std;
+
+    aiMesh * mesh = scene->mMeshes[0];
+    mesh->mColors[0] = new aiColor4D[mesh->mNumVertices];
+
+    for (int i = 0; i < mesh->mNumVertices; ++i) {
+        mesh->mColors[0][i] = aiColor4D(100.0f, 100.0f, 100.0f, 0.0f);
+    }
+}
+
+void mesh::clear_walkable_surfaces() {
+    this->walkable_faces.clear();
 }

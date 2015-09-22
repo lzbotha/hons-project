@@ -41,8 +41,10 @@ class mesh {
         void delete_faces(std::unordered_set<int> & to_delete);
         bool keep_largest_chunk();
 
+        void clear_walkable_surfaces();
+
         aiVector3D get_face_normal(const aiFace & face);
-        bool prune();
+        bool prune(float delta_angle);
 };
 
 #endif
