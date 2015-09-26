@@ -41,21 +41,50 @@ bool mesh::import_from_file(const std::string& filepath) {
     return true;
 }
 
-bool mesh::export_to_file(const std::string& format, const std::string& filepath) {
+bool mesh::export_to_file(const std::string& format, const std::string& filepath, const std::string & filename) {
     Assimp::Exporter exporter;
 
     aiScene * temp;
     aiCopyScene(this->scene, &temp);
     keep_faces(this->walkable_faces, temp);
+    auto write_1 = exporter.Export(temp, format, filepath+"w_"+filename);
 
-    if(AI_SUCCESS == exporter.Export(temp, format, filepath)) {
+    aiScene * temp2;
+    aiCopyScene(this->scene, &temp2);
+    aiMesh * mesh = scene->mMeshes[0];
+
+    std::unordered_set<int> unwalkable;
+    for (int i = 0; i < mesh->mNumFaces; ++i){
+        // std::cout << "adding face: " << i << std::endl;
+        unwalkable.insert(i);
+    }
+
+    std::cout << "unwalkable initial size: " << unwalkable.size() << std::endl;
+    std::cout << "walkable size: " << walkable_faces.size() << std::endl;
+
+    for (int f : this->walkable_faces){
+        unwalkable.erase(f);
+        // std::cout << "removing face: " << f << std::endl;
+    }
+
+    // for (int f : unwalkable){
+    //     std::cout << "not walkable: " << f << std::endl;
+    // }
+
+    std::cout << "unwalkable final size: " << unwalkable.size() << std::endl;
+
+    keep_faces(unwalkable, temp2);
+
+    // std::cout << "There are : " << temp2->mMeshes[0]->mNumFaces << std::endl;
+
+    auto write_2 = exporter.Export(temp2, format, filepath+"u_"+filename);
+
+    if(AI_SUCCESS == write_1 and AI_SUCCESS == write_2) {
         return true;
     }
 
     std::cerr << exporter.GetErrorString() << std::endl;
     return false;
-
-    delete temp;
 }
 
 bool mesh::is_walkable(int f) {
@@ -69,7 +98,9 @@ void mesh::keep_faces(std::unordered_set<int> & to_keep, aiScene * s) {
     aiFace * new_faces = new aiFace[mesh->mNumFaces];
 
     for (int i = 0; i < mesh->mNumFaces; ++i) {
-        if (to_keep.find(i) != to_keep.end()) {
+        // If this face is in to_keep keep it
+        if (to_keep.count(i) > 0) {
+            // std::cout << "keeping face: " << i << std::endl;
             new_faces[num_new] = mesh->mFaces[i];
             ++num_new;
         }
@@ -591,17 +622,26 @@ bool mesh::cull_chunks(int min_size) {
     return true;
 }
 
-void mesh::color_walkable_faces() {
-    using namespace std;
-
-    aiMesh * mesh = scene->mMeshes[0];
-    mesh->mColors[0] = new aiColor4D[mesh->mNumVertices];
-
-    for (int i = 0; i < mesh->mNumVertices; ++i) {
-        mesh->mColors[0][i] = aiColor4D(100.0f, 100.0f, 100.0f, 0.0f);
-    }
-}
-
 void mesh::clear_walkable_surfaces() {
     this->walkable_faces.clear();
+}
+
+// TODO: make this a bool and if a mesh has no colors return false
+void mesh::color_faces() {
+    using namespace std;
+    aiMesh * mesh = scene->mMeshes[0];
+
+    for (int i = 0; i < 8; ++i)
+        cout << mesh-> HasVertexColors(i) << endl;
+
+    if (mesh-> HasVertexColors(0)) {
+        cout << "color shit is happening" << endl;
+        for (int i = 0; i < mesh->mNumVertices; ++i){
+            mesh->mColors[0][i].r = 0.0f;
+            mesh->mColors[0][i].b = 1.0f;
+        }
+    }
+    else {
+        cout << "color shit is NOT happening" << endl;
+    }
 }

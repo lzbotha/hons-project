@@ -19,7 +19,7 @@ class mesh {
         mesh();
 
         bool import_from_file(const std::string& filepath);
-        bool export_to_file(const std::string& format, const std::string& filepath);
+        bool export_to_file(const std::string& format, const std::string& filepath, const std::string & filename);
 
         bool is_walkable(int f);
 
@@ -45,6 +45,9 @@ class mesh {
 
         aiVector3D get_face_normal(const aiFace & face);
         bool prune(float delta_angle);
+
+
+        void color_faces();
 };
 
 #endif
