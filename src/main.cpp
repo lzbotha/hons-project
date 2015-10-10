@@ -41,7 +41,7 @@ int main() {
     //     "Wadi_part_1_colour.obj",
     //     "Wadi_recco_tomb_colour_shift.obj"
     // };
-
+    
     // for (int i = 0; i < filepaths.size(); ++i){
     //     mesh m;
     //     cout << m.import_from_file(filepaths[i]+filenames[i]) << endl;

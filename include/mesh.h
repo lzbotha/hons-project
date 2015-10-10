@@ -2,6 +2,8 @@
 #define INCLUDE_MESH_H
 
 #include <assimp/scene.h>
+#include <flann/flann.hpp>
+
 #include <string>
 #include <unordered_set>
 #include <unordered_map>
@@ -11,6 +13,7 @@ class mesh {
     private:
         aiScene * scene;
         std::unordered_set<int> walkable_faces;
+        flann::Index<flann::L2_Simple<float>> * f_index;
     
     public:
         std::unordered_map<int, std::unordered_set<int>> neighbouring_triangles;
@@ -48,6 +51,12 @@ class mesh {
 
 
         void color_faces();
+
+        void merge_chunks();
+
+        void setup_spatial_structures();
+
+        void get_face_center(int face, aiVector3D & center);
 };
 
 #endif

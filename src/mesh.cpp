@@ -142,20 +142,32 @@ bool mesh::prune(float delta_angle) {
     return true;
 }
 
+void mesh::get_face_center(int face, aiVector3D & center) {
+    // TODO: make this change the center to the 0 vector before screwing with it
+    aiMesh * mesh = scene->mMeshes[0];
+    const aiFace & f = mesh->mFaces[face];
+
+    for (int i = 0; i < f.mNumIndices; ++i)
+        center += mesh->mVertices[f.mIndices[i]];
+    center /= f.mNumIndices;
+}
+
 float mesh::distance(int face1, int face2) {
     aiMesh * mesh = scene->mMeshes[0];
     
-    aiFace f1 = mesh->mFaces[face1];
+    // aiFace f1 = mesh->mFaces[face1];
     aiVector3D f1m(0,0,0);
-    for (int i = 0; i < f1.mNumIndices; ++i)
-        f1m += mesh->mVertices[f1.mIndices[i]];
-    f1m /= f1.mNumIndices;
+    this->get_face_center(face1, f1m);
+    // for (int i = 0; i < f1.mNumIndices; ++i)
+    //     f1m += mesh->mVertices[f1.mIndices[i]];
+    // f1m /= f1.mNumIndices;
 
-    aiFace f2 = mesh->mFaces[face2];
+    // aiFace f2 = mesh->mFaces[face2];
     aiVector3D f2m(0,0,0);
-    for (int i = 0; i < f2.mNumIndices; ++i)
-        f2m += mesh->mVertices[f2.mIndices[i]];
-    f2m /= f2.mNumIndices;
+    // for (int i = 0; i < f2.mNumIndices; ++i)
+    //     f2m += mesh->mVertices[f2.mIndices[i]];
+    // f2m /= f2.mNumIndices;
+    this->get_face_center(face2, f2m);
 
     return sqrt(
         pow(f1m.x - f2m.x, 2) +
@@ -644,4 +656,82 @@ void mesh::color_faces() {
     else {
         cout << "color shit is NOT happening" << endl;
     }
+}
+
+void mesh::merge_chunks() {
+    using namespace std;
+
+    // setup all chunks
+    vector<unordered_set<int>> chunks;
+
+    // Put all walkable faces into a set
+    unordered_set<int> faces = this->walkable_faces;
+    aiMesh * mesh = scene->mMeshes[0];
+
+    while (!faces.empty()) {
+
+        unordered_set<int> chunk;
+
+        // select a face
+        int f = -1;
+        std::unordered_set<int>::iterator iter = faces.begin();
+        if (iter != faces.end())
+            f = *iter;
+        else{
+            cerr << "No remaining faces" << endl;
+            cerr << faces.size() << endl;
+            break;
+        }
+
+        chunk.insert(f);
+        faces.erase(f);
+
+        // iterate over all its neighbours adding it to a local set
+        this->fill(f, faces, chunk);
+
+        // once the chunk has been populated add it to the vector of chunks
+        chunks.emplace_back(chunk);
+    }
+
+    // Find the edges of each chunk
+    vector<unordered_set<int>> chunks_edges;
+    for (unordered_set<int> & c : chunks) {
+        unordered_set<int> edges;
+
+        for (int f : c) {
+            std::unordered_set<int> & neighbours = neighbouring_triangles[f];
+            for (int n : neighbours) {
+                if (c.count(n) == 0)
+                    edges.insert(n);
+            }
+        }
+        chunks_edges.emplace_back(edges);
+    }
+
+    // for each chunk try and link it with each other chunk
+}
+
+void mesh::setup_spatial_structures() {
+    // TODO: either clear the memory from f_index or make this a constructor only method
+    using namespace std;
+    
+    aiMesh * mesh = scene->mMeshes[0];
+
+    // add all the current flaces to the index
+    float * pts = new float[mesh->mNumFaces * 3];
+    for (int i = 0; i < mesh->mNumFaces; ++i){
+        aiVector3D f(0,0,0);
+        this->get_face_center(i, f);
+
+        pts[i*3 + 0] = f.x;
+        pts[i*3 + 1] = f.y;
+        pts[i*3 + 2] = f.z;
+    }
+
+    flann::Matrix<float> dataset(pts, mesh->mNumFaces, 3);
+    this->f_index = new flann::Index<flann::L2_Simple<float>>(dataset, flann::KDTreeSingleIndexParams());
+
+
+    // TODO: handle memory cleanup for the index construction
+    delete[] pts;
 }
