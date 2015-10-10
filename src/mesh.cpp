@@ -733,5 +733,31 @@ void mesh::setup_spatial_structures() {
     this->f_index->buildIndex();
 
     // TODO: handle memory cleanup for the index construction
-    cout << "ending FLANN" << endl;
+}
+
+void mesh::get_faces_in_radius() {
+    using namespace std;
+
+    float * q = new float[3];
+    q[0] = -5166.26f;
+    q[1] = 963.869f;
+    q[2] = 6785.16f;
+    flann::Matrix<float> query(q,1,3);
+    
+    vector<vector<int>> indices;
+    vector<vector<float>> dists;
+    float radius = 0.5f;
+
+    cout << "Number of results: " << f_index->radiusSearch(query, indices, dists, radius, flann::SearchParams()) << endl;
+
+    cout << ":" << query[0][0] << " " << query[0][1] << " " << query[0][2] << endl;
+
+
+    // mesh->mVertices[f.mIndices[i]];
+    for (int i = 0; i < indices[0].size(); ++i){
+        aiVector3D c(0,0,0);
+        this->get_face_center(indices[0][i], c);
+
+        cout << c.x << " " << c.y << " " << c.z << endl;
+    }
 }

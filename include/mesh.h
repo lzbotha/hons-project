@@ -57,6 +57,8 @@ class mesh {
         void setup_spatial_structures();
 
         void get_face_center(int face, aiVector3D & center);
+
+        void get_faces_in_radius();
 };
 
 #endif
