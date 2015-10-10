@@ -730,8 +730,8 @@ void mesh::setup_spatial_structures() {
 
     flann::Matrix<float> dataset(pts, mesh->mNumFaces, 3);
     this->f_index = new flann::Index<flann::L2_Simple<float>>(dataset, flann::KDTreeSingleIndexParams());
-
+    this->f_index->buildIndex();
 
     // TODO: handle memory cleanup for the index construction
-    delete[] pts;
+    cout << "ending FLANN" << endl;
 }
