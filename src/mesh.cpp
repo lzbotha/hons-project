@@ -44,6 +44,9 @@ bool mesh::import_from_file(const std::string& filepath) {
 bool mesh::export_to_file(const std::string& format, const std::string& filepath, const std::string & filename) {
     Assimp::Exporter exporter;
 
+    // TODO: fix the memory leak from not deleting temp and temp2
+    // Note that aiScene::~aiScene() is not exported by the library
+
     aiScene * temp;
     aiCopyScene(this->scene, &temp);
     keep_faces(this->walkable_faces, temp);
@@ -117,10 +120,8 @@ void mesh::delete_faces(std::unordered_set<int> & to_delete) {
         this->walkable_faces.erase(f);
 }
 
-bool mesh::prune(float delta_angle) {
-    // TODO: make this more generic and bad in general
-    aiVector3D n(0.0f, 1.0f, 0.0f);
-
+bool mesh::prune(float delta_angle, aiVector3D n) {
+    // TODO: throw an exception earlier if this is the case (probably in the import method)
     if (scene->mNumMeshes != 1)
         return false;
 
@@ -132,8 +133,6 @@ bool mesh::prune(float delta_angle) {
             get_face_normal(mesh->mFaces[i])
         );
 
-        // TODO: don't hard code this either
-        // if (angle < 0.785398163f / 2) {
         if (angle < delta_angle) {
             this->walkable_faces.insert(i);
         }
@@ -143,7 +142,8 @@ bool mesh::prune(float delta_angle) {
 }
 
 void mesh::get_face_center(int face, aiVector3D & center) {
-    // TODO: make this change the center to the 0 vector before screwing with it
+    center.x = center.y = center.z = 0;
+
     aiMesh * mesh = scene->mMeshes[0];
     const aiFace & f = mesh->mFaces[face];
 
@@ -155,18 +155,10 @@ void mesh::get_face_center(int face, aiVector3D & center) {
 float mesh::distance(int face1, int face2) {
     aiMesh * mesh = scene->mMeshes[0];
     
-    // aiFace f1 = mesh->mFaces[face1];
     aiVector3D f1m(0,0,0);
     this->get_face_center(face1, f1m);
-    // for (int i = 0; i < f1.mNumIndices; ++i)
-    //     f1m += mesh->mVertices[f1.mIndices[i]];
-    // f1m /= f1.mNumIndices;
 
-    // aiFace f2 = mesh->mFaces[face2];
     aiVector3D f2m(0,0,0);
-    // for (int i = 0; i < f2.mNumIndices; ++i)
-    //     f2m += mesh->mVertices[f2.mIndices[i]];
-    // f2m /= f2.mNumIndices;
     this->get_face_center(face2, f2m);
 
     return sqrt(
@@ -174,56 +166,6 @@ float mesh::distance(int face1, int face2) {
         pow(f1m.y - f2m.y, 2) +
         pow(f1m.z - f2m.z, 2)
     );
-}
-
-void mesh::spill(int origin_face, int current_face, std::unordered_set<int> & origin_chunk, float dist, std::vector<int> path, std::unordered_set<int> & visited, std::unordered_set<int> & to_add) {
-
-    if (origin_chunk.find(current_face) != origin_chunk.end()){
-        // std::cout << "X";
-        return;
-    }
-
-    if (distance(origin_face, current_face) > dist){
-        // std::cout << "D";
-        return;
-    }
-
-    // if the current face is walkable
-    if (walkable_faces.find(current_face) != walkable_faces.end()) {
-
-        if (origin_chunk.find(current_face) != origin_chunk.end()){
-            std::cout << "The sky is falling" << std::endl;
-        }
-
-        // add all faces
-        for (int f : path)
-            to_add.insert(f);
-
-        // std::cout << "adding some faces: " << path.size() << std::endl;
-        // std::cout << "A";
-        return;
-    }
-
-    // std::cout << "X";
-
-    for (int nf : neighbouring_triangles[current_face]) {
-        if (origin_face == nf)
-            continue;
-
-        if (visited.find(nf) != visited.end())
-            continue;
-
-        // TODO: tidy this up since it is not necessary as the method stub uses copy semantics anyway
-        // std::cout << "." << std::endl;
-        std::vector<int> new_path = path;
-        new_path.emplace_back(current_face);
-
-        visited.insert(current_face);
-
-        // std::cout << new_path.size() << std::endl;
-        // std::cout << "dist: " << distance(origin_face, current_face) << std::endl;
-        spill(origin_face, nf, origin_chunk, dist, new_path, visited, to_add);
-    }
 }
 
 struct S
@@ -538,24 +480,6 @@ bool mesh::setup_neighbouring_triangles() {
     return true;
 }
 
-// void mesh::fill(
-//     int f,
-//     std::unordered_set<int> & faces,
-//     std::unordered_set<int> & chunk
-//     )
-// {
-//     // if all the neighbours of this face are already in chunk return
-//     for (int nf : neighbouring_triangles[f]) {
-//         if (faces.find(nf) != faces.end()) {
-//             // recurse further
-//             faces.erase(nf);
-//             chunk.insert(nf);
-//             // std::cout << faces.size() << std::endl;
-//             this->fill(nf, faces, chunk);
-//         }
-//     }
-// }
-
 void mesh::fill(
     int f,
     std::unordered_set<int> & faces,
@@ -566,8 +490,8 @@ void mesh::fill(
     std::stack<int> to_process;
     to_process.emplace(f);
 
-    // TODO: change this to use .empty instead
-    while (to_process.size() > 0) {
+    // while to_process is not empty
+    while (!to_process.empty()) {
         int face = to_process.top();
         to_process.pop();
 
@@ -577,7 +501,6 @@ void mesh::fill(
                 // recurse further
                 faces.erase(nf);
                 chunk.insert(nf);
-                // std::cout << faces.size() << std::endl;
 
                 to_process.emplace(nf);
             }
@@ -636,26 +559,6 @@ bool mesh::cull_chunks(int min_size) {
 
 void mesh::clear_walkable_surfaces() {
     this->walkable_faces.clear();
-}
-
-// TODO: make this a bool and if a mesh has no colors return false
-void mesh::color_faces() {
-    using namespace std;
-    aiMesh * mesh = scene->mMeshes[0];
-
-    for (int i = 0; i < 8; ++i)
-        cout << mesh-> HasVertexColors(i) << endl;
-
-    if (mesh-> HasVertexColors(0)) {
-        cout << "color shit is happening" << endl;
-        for (int i = 0; i < mesh->mNumVertices; ++i){
-            mesh->mColors[0][i].r = 0.0f;
-            mesh->mColors[0][i].b = 1.0f;
-        }
-    }
-    else {
-        cout << "color shit is NOT happening" << endl;
-    }
 }
 
 void mesh::merge_chunks() {
@@ -752,8 +655,6 @@ void mesh::get_faces_in_radius() {
 
     cout << ":" << query[0][0] << " " << query[0][1] << " " << query[0][2] << endl;
 
-
-    // mesh->mVertices[f.mIndices[i]];
     for (int i = 0; i < indices[0].size(); ++i){
         aiVector3D c(0,0,0);
         this->get_face_center(indices[0][i], c);
