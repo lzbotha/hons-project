@@ -638,27 +638,249 @@ void mesh::setup_spatial_structures() {
     // TODO: handle memory cleanup for the index construction
 }
 
-void mesh::get_faces_in_radius() {
+int mesh::get_faces_in_radius(
+    int face, 
+    float radius, 
+    std::vector<std::vector<int>> & indices, 
+    std::vector<std::vector<float>> & dists
+) {
     using namespace std;
 
+    aiVector3D c(0.0f, 0.0f, 0.0f);
+    this->get_face_center(face, c);
+
     float * q = new float[3];
-    q[0] = -5166.26f;
-    q[1] = 963.869f;
-    q[2] = 6785.16f;
+    q[0] = c.x;
+    q[1] = c.y;
+    q[2] = c.z;
     flann::Matrix<float> query(q,1,3);
-    
-    vector<vector<int>> indices;
-    vector<vector<float>> dists;
-    float radius = 0.5f;
 
-    cout << "Number of results: " << f_index->radiusSearch(query, indices, dists, radius, flann::SearchParams()) << endl;
+    return f_index->radiusSearch(query, indices, dists, radius, flann::SearchParams());
+}
 
-    cout << ":" << query[0][0] << " " << query[0][1] << " " << query[0][2] << endl;
+bool mesh::prune_overhangs(float height, float radius) {
+    // TODO: parameterize this function with the up vector
 
-    for (int i = 0; i < indices[0].size(); ++i){
-        aiVector3D c(0,0,0);
-        this->get_face_center(indices[0][i], c);
+    using namespace std;
+    unordered_set<int> to_keep;
+    float fetch_radius = sqrt(
+        pow(radius, 2) +
+        pow(height, 2)
+    );
 
-        cout << c.x << " " << c.y << " " << c.z << endl;
+    for (int f : this->walkable_faces) {
+        vector<vector<int>> indices; 
+        vector<vector<float>> dists;
+
+        aiVector3D f_center(0,0,0);
+        this->get_face_center(f, f_center);
+
+        this->get_faces_in_radius(f, fetch_radius, indices, dists);
+
+        bool should_insert = true;
+        for (int n : indices[0]) {
+            aiVector3D n_center(0.0f, 0.0f, 0.0f);
+            this->get_face_center(n, n_center);
+
+            // Check if this face is in the cylinder
+            // check xz distance
+            // TODO: check that this assertion is true
+            if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
+                continue;
+
+            // check y distance
+            // check that this isnt finding verts under the face
+            if(f_center.y > n_center.y)
+                continue;
+
+            if (abs(n_center.y - f_center.y) > height)
+                continue;
+
+            if (abs(n_center.y - f_center.y) < height*0.01f)
+                continue;
+
+            should_insert &= false;
+        }
+
+        if (should_insert){
+            to_keep.insert(f);
+
+            for (int n : indices[0]) {
+                aiVector3D n_center(0.0f, 0.0f, 0.0f);
+                this->get_face_center(n, n_center);
+
+                // Check if this face is in the disk
+                // check xz distance
+                if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
+                    continue;
+
+                // check y distance
+                if (abs(n_center.y - f_center.y) > height*0.01f)
+                    continue;
+
+                if (walkable_faces.count(n) > 0)
+                    to_keep.insert(n);
+            }
+        }
+
     }
+
+    this->clear_walkable_surfaces();
+    this->walkable_faces = std::move(to_keep);
+
+    return true;
+}
+
+// bool mesh::prune_bottlenecks(float step_height, float radius) {
+//     // TODO: parameterize this function with the up vector
+//     using namespace std;
+//     unordered_set<int> to_keep;
+//     float fetch_radius = sqrt(
+//         pow(radius, 2) +
+//         pow(step_height, 2)
+//     );
+
+//     for (int f : this->walkable_faces) {
+//         vector<vector<int>> indices; 
+//         vector<vector<float>> dists;
+
+//         aiVector3D f_center(0,0,0);
+//         this->get_face_center(f, f_center);
+
+//         this->get_faces_in_radius(f, fetch_radius, indices, dists);
+
+//         bool should_insert = true;
+//         for (int n : indices[0]) {
+//             aiVector3D n_center(0.0f, 0.0f, 0.0f);
+//             this->get_face_center(n, n_center);
+
+//             // Check if this face is in the disk
+//             // check xz distance
+//             if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
+//                 continue;
+
+//             // check y distance
+//             if (abs(n_center.y - f_center.y) > step_height)
+//                 continue;
+
+//             if (walkable_faces.count(n) == 0)
+//                 should_insert &= false;
+//         }
+
+//         if (should_insert){
+//             to_keep.insert(f);
+
+//             for (int n : indices[0]) {
+//                 aiVector3D n_center(0.0f, 0.0f, 0.0f);
+//                 this->get_face_center(n, n_center);
+
+//                 // Check if this face is in the disk
+//                 // check xz distance
+//                 if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
+//                     continue;
+
+//                 // check y distance
+//                 if (abs(n_center.y - f_center.y) > step_height)
+//                     continue;
+
+//                 if (walkable_faces.count(n) > 0)
+//                     to_keep.insert(n);
+//             }
+//         }
+
+//     }
+
+//     this->clear_walkable_surfaces();
+//     this->walkable_faces = std::move(to_keep);
+
+//     return true;
+// }
+
+bool mesh::prune_bottlenecks(float step_height, float radius) {
+    // TODO: parameterize this function with the up vector
+    using namespace std;
+    unordered_set<int> to_keep;
+    float fetch_radius = sqrt(
+        pow(radius, 2) +
+        pow(step_height, 2)
+    );
+
+    for (int f : this->walkable_faces) {
+        vector<vector<int>> indices; 
+        vector<vector<float>> dists;
+
+        aiVector3D f_center(0,0,0);
+        this->get_face_center(f, f_center);
+
+        this->get_faces_in_radius(f, fetch_radius, indices, dists);
+
+        bool should_insert = true;
+        for (int n : indices[0]) {
+            aiVector3D n_center(0.0f, 0.0f, 0.0f);
+            this->get_face_center(n, n_center);
+
+            // Check if this face is in the disk
+            // check xz distance
+            if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
+                continue;
+
+            // check y distance
+            if (abs(n_center.y - f_center.y) > step_height)
+                continue;
+
+            if (walkable_faces.count(n) == 0)
+                should_insert &= false;
+        }
+
+        // if (should_insert){
+        //     to_keep.insert(f);
+
+        //     for (int n : indices[0]) {
+        //         aiVector3D n_center(0.0f, 0.0f, 0.0f);
+        //         this->get_face_center(n, n_center);
+
+        //         // Check if this face is in the disk
+        //         // check xz distance
+        //         if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
+        //             continue;
+
+        //         // check y distance
+        //         if (abs(n_center.y - f_center.y) > step_height)
+        //             continue;
+
+        //         if (walkable_faces.count(n) > 0)
+        //             to_keep.insert(n);
+        //     }
+        // }
+
+    }
+
+    this->clear_walkable_surfaces();
+    this->walkable_faces = std::move(to_keep);
+
+    return true;
+}
+
+float mesh::get_face_area(int face) {
+    aiMesh * mesh = scene->mMeshes[0];
+    auto f = mesh->mFaces[face];
+
+    
+    aiVector3D ab(
+        mesh->mVertices[f.mIndices[1]].x - mesh->mVertices[f.mIndices[0]].x,
+        mesh->mVertices[f.mIndices[1]].y - mesh->mVertices[f.mIndices[0]].y,
+        mesh->mVertices[f.mIndices[1]].z - mesh->mVertices[f.mIndices[0]].z
+    );
+    
+    aiVector3D ac(
+        mesh->mVertices[f.mIndices[2]].x - mesh->mVertices[f.mIndices[0]].x,
+        mesh->mVertices[f.mIndices[2]].y - mesh->mVertices[f.mIndices[0]].y,
+        mesh->mVertices[f.mIndices[2]].z - mesh->mVertices[f.mIndices[0]].z
+    );
+
+    return 0.5 * sqrt(
+        pow(ab.y * ac.z + ab.z * ac.y, 2) +
+        pow(ab.z * ac.x + ab.x * ac.z, 2) +
+        pow(ab.x * ac.y + ab.y * ac.x, 2)
+    );
 }
