@@ -80,9 +80,10 @@ bool mesh::export_to_file(const std::string& format, const std::string& filepath
 
     // std::cout << "There are : " << temp2->mMeshes[0]->mNumFaces << std::endl;
 
-    auto write_2 = exporter.Export(temp2, format, filepath+"u_"+filename);
+    // auto write_2 = exporter.Export(temp2, format, filepath+"u_"+filename);
 
-    if(AI_SUCCESS == write_1 and AI_SUCCESS == write_2) {
+    // if(AI_SUCCESS == write_1 and AI_SUCCESS == write_2) {
+    if(AI_SUCCESS == write_1) {
         return true;
     }
 
@@ -663,10 +664,11 @@ bool mesh::prune_overhangs(float height, float radius) {
 
     using namespace std;
     unordered_set<int> to_keep;
-    float fetch_radius = sqrt(
-        pow(radius, 2) +
-        pow(height, 2)
-    );
+    // float fetch_radius = sqrt(
+    //     pow(radius, 2) +
+    //     pow(height, 2)
+    // );
+    float fetch_radius = radius + height;
 
     for (int f : this->walkable_faces) {
         vector<vector<int>> indices; 
@@ -684,7 +686,6 @@ bool mesh::prune_overhangs(float height, float radius) {
 
             // Check if this face is in the cylinder
             // check xz distance
-            // TODO: check that this assertion is true
             if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
                 continue;
 
@@ -693,13 +694,17 @@ bool mesh::prune_overhangs(float height, float radius) {
             if(f_center.y > n_center.y)
                 continue;
 
+            // THIS IS A MISTAKE
+            // CONSIDER A SLOPE
+            // NOW HALF OF IT IS NOT WALKABLE
             if (abs(n_center.y - f_center.y) > height)
                 continue;
 
-            if (abs(n_center.y - f_center.y) < height*0.01f)
+            if (abs(n_center.y - f_center.y) < 0.3f)
                 continue;
 
             should_insert &= false;
+            break;
         }
 
         if (should_insert){
@@ -715,7 +720,13 @@ bool mesh::prune_overhangs(float height, float radius) {
                     continue;
 
                 // check y distance
-                if (abs(n_center.y - f_center.y) > height*0.01f)
+                if (abs(n_center.y - f_center.y) < 0.3f)
+                    continue;
+
+                if(f_center.y > n_center.y)
+                    continue;
+
+                if (abs(n_center.y - f_center.y) > height)
                     continue;
 
                 if (walkable_faces.count(n) > 0)
@@ -731,70 +742,6 @@ bool mesh::prune_overhangs(float height, float radius) {
     return true;
 }
 
-// bool mesh::prune_bottlenecks(float step_height, float radius) {
-//     // TODO: parameterize this function with the up vector
-//     using namespace std;
-//     unordered_set<int> to_keep;
-//     float fetch_radius = sqrt(
-//         pow(radius, 2) +
-//         pow(step_height, 2)
-//     );
-
-//     for (int f : this->walkable_faces) {
-//         vector<vector<int>> indices; 
-//         vector<vector<float>> dists;
-
-//         aiVector3D f_center(0,0,0);
-//         this->get_face_center(f, f_center);
-
-//         this->get_faces_in_radius(f, fetch_radius, indices, dists);
-
-//         bool should_insert = true;
-//         for (int n : indices[0]) {
-//             aiVector3D n_center(0.0f, 0.0f, 0.0f);
-//             this->get_face_center(n, n_center);
-
-//             // Check if this face is in the disk
-//             // check xz distance
-//             if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
-//                 continue;
-
-//             // check y distance
-//             if (abs(n_center.y - f_center.y) > step_height)
-//                 continue;
-
-//             if (walkable_faces.count(n) == 0)
-//                 should_insert &= false;
-//         }
-
-//         if (should_insert){
-//             to_keep.insert(f);
-
-//             for (int n : indices[0]) {
-//                 aiVector3D n_center(0.0f, 0.0f, 0.0f);
-//                 this->get_face_center(n, n_center);
-
-//                 // Check if this face is in the disk
-//                 // check xz distance
-//                 if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
-//                     continue;
-
-//                 // check y distance
-//                 if (abs(n_center.y - f_center.y) > step_height)
-//                     continue;
-
-//                 if (walkable_faces.count(n) > 0)
-//                     to_keep.insert(n);
-//             }
-//         }
-
-//     }
-
-//     this->clear_walkable_surfaces();
-//     this->walkable_faces = std::move(to_keep);
-
-//     return true;
-// }
 
 bool mesh::prune_bottlenecks(float step_height, float radius) {
     // TODO: parameterize this function with the up vector
@@ -814,7 +761,7 @@ bool mesh::prune_bottlenecks(float step_height, float radius) {
 
         this->get_faces_in_radius(f, fetch_radius, indices, dists);
 
-        bool should_insert = true;
+        float area = 0.0f;
         for (int n : indices[0]) {
             aiVector3D n_center(0.0f, 0.0f, 0.0f);
             this->get_face_center(n, n_center);
@@ -828,30 +775,30 @@ bool mesh::prune_bottlenecks(float step_height, float radius) {
             if (abs(n_center.y - f_center.y) > step_height)
                 continue;
 
-            if (walkable_faces.count(n) == 0)
-                should_insert &= false;
+            if (walkable_faces.count(n) > 0)
+                area += this->get_face_area(n);
         }
 
-        // if (should_insert){
-        //     to_keep.insert(f);
+        if (area >= 1.57079632679f*pow(radius,2)){
+            to_keep.insert(f);
 
-        //     for (int n : indices[0]) {
-        //         aiVector3D n_center(0.0f, 0.0f, 0.0f);
-        //         this->get_face_center(n, n_center);
+            for (int n : indices[0]) {
+                aiVector3D n_center(0.0f, 0.0f, 0.0f);
+                this->get_face_center(n, n_center);
 
-        //         // Check if this face is in the disk
-        //         // check xz distance
-        //         if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
-        //             continue;
+                // Check if this face is in the disk
+                // check xz distance
+                if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
+                    continue;
 
-        //         // check y distance
-        //         if (abs(n_center.y - f_center.y) > step_height)
-        //             continue;
+                // check y distance
+                if (abs(n_center.y - f_center.y) > step_height)
+                    continue;
 
-        //         if (walkable_faces.count(n) > 0)
-        //             to_keep.insert(n);
-        //     }
-        // }
+                if (walkable_faces.count(n) > 0)
+                    to_keep.insert(n);
+            }
+        }
 
     }
 
@@ -862,10 +809,14 @@ bool mesh::prune_bottlenecks(float step_height, float radius) {
 }
 
 float mesh::get_face_area(int face) {
+    using namespace std;
     aiMesh * mesh = scene->mMeshes[0];
     auto f = mesh->mFaces[face];
 
     
+    if(f.mNumIndices < 3)
+        return 0.0f;
+
     aiVector3D ab(
         mesh->mVertices[f.mIndices[1]].x - mesh->mVertices[f.mIndices[0]].x,
         mesh->mVertices[f.mIndices[1]].y - mesh->mVertices[f.mIndices[0]].y,
