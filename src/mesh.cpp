@@ -142,6 +142,40 @@ bool mesh::prune(float delta_angle, aiVector3D n) {
     return true;
 }
 
+bool mesh::prune_weighted_gradient(float radius, float gradient, int weighting) {
+    using namespace std;
+
+    aiMesh * mesh = scene->mMeshes[0];
+    aiVector3D up = aiVector3D(0.0f, 1.0f, 0.0f);
+
+    for (int f = 0; f < mesh->mNumFaces; ++f) {
+        float avg_gradient = weighting * utils::angle_between(
+            up, 
+            get_face_normal(mesh->mFaces[f])
+        );
+
+        int count = weighting;
+        vector<vector<int>> indices; 
+        vector<vector<float>> dists;
+
+        this->get_faces_in_radius(f, radius, indices, dists);
+
+        for (int n : indices[0]){
+            avg_gradient += utils::angle_between(
+                up, 
+                get_face_normal(mesh->mFaces[n])
+            );
+            ++count;
+        }
+        avg_gradient /= count;
+
+        if (avg_gradient < gradient)
+            this->walkable_faces.insert(f);
+    }
+
+    return true;
+}
+
 void mesh::get_face_center(int face, aiVector3D & center) {
     center.x = center.y = center.z = 0;
 
@@ -558,6 +592,12 @@ bool mesh::cull_chunks(int min_size) {
     return true;
 }
 
+bool cull_chunks(float min_area) {
+
+
+    return true;
+}
+
 void mesh::clear_walkable_surfaces() {
     this->walkable_faces.clear();
 }
@@ -659,81 +699,51 @@ int mesh::get_faces_in_radius(
     return f_index->radiusSearch(query, indices, dists, radius, flann::SearchParams());
 }
 
-bool mesh::prune_overhangs(float height, float radius) {
-    // TODO: parameterize this function with the up vector
+int mesh::get_faces_in_radius(const std::vector<std::vector<float>> & positions, float radius, std::vector<std::vector<int>> & indices, std::vector<std::vector<float>> & dists){
+    using namespace std;
+    float * q = new float[3 * positions.size()];
 
+    for (int i = 0; i < positions.size(); ++i){
+
+        q[i*3 + 0] = positions[i][0];
+        q[i*3 + 1] = positions[i][1];
+        q[i*3 + 2] = positions[i][2];
+    }
+
+    flann::Matrix<float> query(q,positions.size(),3);
+
+    return f_index->radiusSearch(query, indices, dists, radius, flann::SearchParams());
+}
+
+bool mesh::prune_overhangs(float height, float step_height, float radius) {
+    // TODO: parameterize this function with the up vector
     using namespace std;
     unordered_set<int> to_keep;
-    // float fetch_radius = sqrt(
-    //     pow(radius, 2) +
-    //     pow(height, 2)
-    // );
-    float fetch_radius = radius + height;
 
     for (int f : this->walkable_faces) {
         vector<vector<int>> indices; 
         vector<vector<float>> dists;
+        vector<vector<float>> positions;
 
         aiVector3D f_center(0,0,0);
         this->get_face_center(f, f_center);
 
-        this->get_faces_in_radius(f, fetch_radius, indices, dists);
+        int num_spheres = (int) round((height - step_height) / (2 * radius));
 
-        bool should_insert = true;
-        for (int n : indices[0]) {
-            aiVector3D n_center(0.0f, 0.0f, 0.0f);
-            this->get_face_center(n, n_center);
+        for (int i = 0; i < num_spheres; ++i) {
+            float y_val = f_center.y + step_height + radius + radius*i;
 
-            // Check if this face is in the cylinder
-            // check xz distance
-            if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
-                continue;
-
-            // check y distance
-            // check that this isnt finding verts under the face
-            if(f_center.y > n_center.y)
-                continue;
-
-            // THIS IS A MISTAKE
-            // CONSIDER A SLOPE
-            // NOW HALF OF IT IS NOT WALKABLE
-            if (abs(n_center.y - f_center.y) > height)
-                continue;
-
-            if (abs(n_center.y - f_center.y) < 0.3f)
-                continue;
-
-            should_insert &= false;
-            break;
+            positions.emplace_back(vector<float>({
+                f_center.x, 
+                y_val, 
+                f_center.z
+            }));
         }
 
-        if (should_insert){
+        int faces_found = this->get_faces_in_radius(positions, radius, indices, dists);
+
+        if (faces_found == 0)
             to_keep.insert(f);
-
-            for (int n : indices[0]) {
-                aiVector3D n_center(0.0f, 0.0f, 0.0f);
-                this->get_face_center(n, n_center);
-
-                // Check if this face is in the disk
-                // check xz distance
-                if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
-                    continue;
-
-                // check y distance
-                if (abs(n_center.y - f_center.y) < 0.3f)
-                    continue;
-
-                if(f_center.y > n_center.y)
-                    continue;
-
-                if (abs(n_center.y - f_center.y) > height)
-                    continue;
-
-                if (walkable_faces.count(n) > 0)
-                    to_keep.insert(n);
-            }
-        }
-
     }
 
     this->clear_walkable_surfaces();
@@ -741,7 +751,6 @@ bool mesh::prune_overhangs(float height, float radius) {
 
     return true;
 }
-
 
 bool mesh::prune_bottlenecks(float step_height, float radius) {
     // TODO: parameterize this function with the up vector

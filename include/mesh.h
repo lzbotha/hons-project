@@ -50,16 +50,18 @@ class mesh {
         aiVector3D get_face_normal(const aiFace & face);
         // bool prune(float delta_angle);
         bool prune(float delta_angle, aiVector3D n = aiVector3D(0.0f, 1.0f, 0.0f));
+        bool prune_weighted_gradient(float radius, float gradient, int weighting = 1);
 
         void setup_spatial_structures();
 
         void get_face_center(int face, aiVector3D & center);
 
         int get_faces_in_radius(int face, float radius, std::vector<std::vector<int>> & indices, std::vector<std::vector<float>> & dists);
+        int get_faces_in_radius(const std::vector<std::vector<float>> & positions, float radius, std::vector<std::vector<int>> & indices, std::vector<std::vector<float>> & dists);
 
         bool cull_chunks(float min_area);
         void merge_chunks();
-        bool prune_overhangs(float height, float radius);
+        bool prune_overhangs(float height, float step_height, float radius);
         bool prune_bottlenecks(float step_height, float radius);
 
         float get_face_area(int face);
