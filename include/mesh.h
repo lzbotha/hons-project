@@ -17,8 +17,7 @@ class mesh {
     
     public:
         std::unordered_map<int, std::unordered_set<int>> neighbouring_triangles;
-        
-        
+                
         mesh();
 
         bool import_from_file(const std::string& filepath);
@@ -34,8 +33,6 @@ class mesh {
         );
         bool cull_chunks(int min_size);
 
-
-
         bool rejoin_chunks(float distance);
         void better_spill(int f, std::unordered_set<int> & to_add, float distancee, std::unordered_set<int> & chunk);
         float distance(int face1, int face2);
@@ -48,7 +45,6 @@ class mesh {
         void clear_walkable_surfaces();
 
         aiVector3D get_face_normal(const aiFace & face);
-        // bool prune(float delta_angle);
         bool prune(float delta_angle, aiVector3D n = aiVector3D(0.0f, 1.0f, 0.0f));
         bool prune_weighted_gradient(float radius, float gradient, int weighting = 1);
 
@@ -65,6 +61,8 @@ class mesh {
         bool prune_bottlenecks(float step_height, float radius);
 
         float get_face_area(int face);
+
+        void setup_chunks(std::vector<std::unordered_set<int>> & chunks);
 };
 
 #endif

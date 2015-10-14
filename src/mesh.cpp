@@ -295,35 +295,7 @@ bool mesh::rejoin_chunks(float distance) {
 
     // setup all chunks
     vector<unordered_set<int>> chunks;
-
-    // Put all walkable faces into a set
-    unordered_set<int> faces = this->walkable_faces;
-    aiMesh * mesh = scene->mMeshes[0];
-
-    while (!faces.empty()) {
-
-        unordered_set<int> chunk;
-
-        // select a face
-        int f = -1;
-        std::unordered_set<int>::iterator iter = faces.begin();
-        if (iter != faces.end())
-            f = *iter;
-        else{
-            cerr << "No remaining faces" << endl;
-            cerr << faces.size() << endl;
-            break;
-        }
-
-        chunk.insert(f);
-        faces.erase(f);
-
-        // iterate over all its neighbours adding it to a local set
-        this->fill(f, faces, chunk);
-
-        // once the chunk has been populated add it to the vector of chunks
-        chunks.emplace_back(chunk);
-    }
+    this->setup_chunks(chunks);
 
     unordered_set<int> to_add;
 
@@ -360,60 +332,7 @@ bool mesh::keep_largest_chunk() {
 
     // setup all chunks
     vector<unordered_set<int>> chunks;
-
-    // Put all walkable faces into a set
-    unordered_set<int> faces = this->walkable_faces;
-    aiMesh * mesh = scene->mMeshes[0];
-
-    cout << "number of faces: " << faces.size() << endl;
-
-    cout << "before while loop" << endl;
-    while (!faces.empty()) {
-
-        unordered_set<int> chunk;
-
-        // select a face
-        int f = -1;
-        std::unordered_set<int>::iterator iter = faces.begin();
-        if (iter != faces.end())
-            f = *iter;
-        else{
-            cerr << "No remaining faces" << endl;
-            cerr << faces.size() << endl;
-            break;
-        }
-
-        chunk.insert(f);
-        faces.erase(f);
-
-        // TODO: figure out if this is just fill and if so replace it
-        // iterate over all its neighbours adding it to a local set
-        stack<int> to_process;
-        to_process.emplace(f);
-
-        // TODO: change this to use .empty instead
-        while (to_process.size() > 0) {
-            int face = to_process.top();
-            to_process.pop();
-
-            // if all the neighbours of this face are already in chunk return
-            for (int nf : neighbouring_triangles[face]) {
-                if (faces.find(nf) != faces.end()) {
-                    // recurse further
-                    faces.erase(nf);
-                    chunk.insert(nf);
-                    // std::cout << faces.size() << std::endl;
-
-                    to_process.emplace(nf);
-                }
-            }
-        }
-
-        // once the chunk has been populated add it to the vector of chunks
-        chunks.emplace_back(chunk);
-    }
-
-    cout << "Number of chunks: " << chunks.size() << endl;
+    this->setup_chunks(chunks);
 
     int size = 0;
     int index = -1;
@@ -544,7 +463,8 @@ void mesh::fill(
 }
 
 bool mesh::cull_chunks(int min_size) {
-    // TODO: refactor this since all this code is duplicated
+    // TODO: refactor this to setup chunks before counting them to
+    //          remove code duplication
 
     using namespace std;
 
@@ -592,8 +512,29 @@ bool mesh::cull_chunks(int min_size) {
     return true;
 }
 
-bool cull_chunks(float min_area) {
+bool mesh::cull_chunks(float min_area) {
+    using namespace std;
+    // setup all chunks
+    vector<unordered_set<int>> chunks;
+    this->setup_chunks(chunks);
+    unordered_set<int> to_keep;
 
+    // For each chunk calculate its area
+    for (unordered_set<int>  & c : chunks) {
+        float chunk_area = 0.0f;
+
+        for (int f : c)
+            chunk_area += this->get_face_area(f);
+
+        if (chunk_area >= min_area){
+            // Insert all these faces into to_keep
+            for (int f : c)
+                to_keep.insert(f);
+        }
+    }
+
+    this->clear_walkable_surfaces();
+    this->walkable_faces = std::move(to_keep);
 
     return true;
 }
@@ -607,35 +548,7 @@ void mesh::merge_chunks() {
 
     // setup all chunks
     vector<unordered_set<int>> chunks;
-
-    // Put all walkable faces into a set
-    unordered_set<int> faces = this->walkable_faces;
-    aiMesh * mesh = scene->mMeshes[0];
-
-    while (!faces.empty()) {
-
-        unordered_set<int> chunk;
-
-        // select a face
-        int f = -1;
-        std::unordered_set<int>::iterator iter = faces.begin();
-        if (iter != faces.end())
-            f = *iter;
-        else{
-            cerr << "No remaining faces" << endl;
-            cerr << faces.size() << endl;
-            break;
-        }
-
-        chunk.insert(f);
-        faces.erase(f);
-
-        // iterate over all its neighbours adding it to a local set
-        this->fill(f, faces, chunk);
-
-        // once the chunk has been populated add it to the vector of chunks
-        chunks.emplace_back(chunk);
-    }
+    this->setup_chunks(chunks);
 
     // Find the edges of each chunk
     vector<unordered_set<int>> chunks_edges;
@@ -653,6 +566,10 @@ void mesh::merge_chunks() {
     }
 
     // for each chunk try and link it with each other chunk
+    vector<vector<int>> to_merge(chunks.size(), vector<int>());
+    for (unordered_set<int> & c_e : chunks_edges) {
+
+    }
 }
 
 void mesh::setup_spatial_structures() {
@@ -843,4 +760,37 @@ float mesh::get_face_area(int face) {
         pow(ab.z * ac.x + ab.x * ac.z, 2) +
         pow(ab.x * ac.y + ab.y * ac.x, 2)
     );
+}
+
+void mesh::setup_chunks(std::vector<std::unordered_set<int>> & chunks) {
+    using namespace std;
+
+    // Put all walkable faces into a set
+    unordered_set<int> faces = this->walkable_faces;
+    aiMesh * mesh = scene->mMeshes[0];
+
+    while (!faces.empty()) {
+
+        unordered_set<int> chunk;
+
+        // select a face
+        int f = -1;
+        std::unordered_set<int>::iterator iter = faces.begin();
+        if (iter != faces.end())
+            f = *iter;
+        else{
+            cerr << "No remaining faces" << endl;
+            cerr << faces.size() << endl;
+            break;
+        }
+
+        chunk.insert(f);
+        faces.erase(f);
+
+        // iterate over all its neighbours adding it to a local set
+        this->fill(f, faces, chunk);
+
+        // once the chunk has been populated add it to the vector of chunks
+        chunks.emplace_back(chunk);
+    }
 }
