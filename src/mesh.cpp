@@ -539,37 +539,110 @@ bool mesh::cull_chunks(float min_area) {
     return true;
 }
 
+bool mesh::cull_chunks(float min_area, std::vector<std::unordered_set<int>> & chunks) {
+    using namespace std;
+    
+    unordered_set<int> to_keep;
+
+    // For each chunk calculate its area
+    for (unordered_set<int>  & c : chunks) {
+        float chunk_area = 0.0f;
+
+        for (int f : c)
+            chunk_area += this->get_face_area(f);
+
+        if (chunk_area >= min_area){
+            // Insert all these faces into to_keep
+            for (int f : c)
+                to_keep.insert(f);
+        }
+    }
+
+    this->clear_walkable_surfaces();
+    this->walkable_faces = std::move(to_keep);
+
+    return true;
+}
+
 void mesh::clear_walkable_surfaces() {
     this->walkable_faces.clear();
 }
 
-void mesh::merge_chunks() {
+void mesh::merge_chunks(float step_distance) {
     using namespace std;
 
     // setup all chunks
     vector<unordered_set<int>> chunks;
     this->setup_chunks(chunks);
 
-    // Find the edges of each chunk
-    vector<unordered_set<int>> chunks_edges;
-    for (unordered_set<int> & c : chunks) {
-        unordered_set<int> edges;
+    // setup a face to chunk mapping
+    unordered_map<int,int> edge_to_chunk_map;
+    for (int chunk = 0; chunk < chunks.size(); ++ chunk)
+        for (int face : chunks[chunk])
+            edge_to_chunk_map.emplace(face, chunk);
 
-        for (int f : c) {
-            std::unordered_set<int> & neighbours = neighbouring_triangles[f];
-            for (int n : neighbours) {
-                if (c.count(n) == 0)
-                    edges.insert(n);
+    // Map out all connected chunks
+    vector<unordered_set<int>> connected_chunks(chunks.size(), unordered_set<int>());
+    for (int chunk = 0; chunk < chunks.size(); ++ chunk) {
+
+        // Find all chunks that are connected to the current chunk
+        for (int face : chunks[chunk]){
+            vector<vector<int>> indices; 
+            vector<vector<float>> dists;
+
+            this->get_faces_in_radius(face, step_distance, indices, dists);
+
+            for (int cf : indices[0]){
+                if (edge_to_chunk_map.count(cf) == 1)
+                    if (edge_to_chunk_map[cf] != chunk)
+                        connected_chunks[chunk].insert(edge_to_chunk_map[cf]);
             }
         }
-        chunks_edges.emplace_back(edges);
     }
 
-    // for each chunk try and link it with each other chunk
-    vector<vector<int>> to_merge(chunks.size(), vector<int>());
-    for (unordered_set<int> & c_e : chunks_edges) {
+    // Flatten the connected chunk graph
+    for (int chunk = 0; chunk < chunks.size(); ++ chunk) {
+        queue<int> other_chunks;
 
+        for (int c : connected_chunks[chunk])
+            other_chunks.push(c);
+
+        while(!other_chunks.empty()) {
+            int oc = other_chunks.front();
+            other_chunks.pop();
+
+            // Add all element in this other chunk to the to_add queue if they are not already in the current face
+            for (int x : connected_chunks[oc])
+                if (connected_chunks[chunk].count(x) == 0){
+                    connected_chunks[chunk].insert(x);
+                    other_chunks.push(x);
+                }
+
+            connected_chunks[oc].clear();
+        }
     }
+
+    for (int chunk = 0; chunk < chunks.size(); ++ chunk) {
+        for (int oc : connected_chunks[chunk]) {
+            for (int f : chunks[oc])
+                chunks[chunk].insert(f);
+            chunks[oc].clear();
+        }
+    }
+
+    int size = 0;
+    int index = -1;
+
+    for (int i = 0; i < chunks.size(); ++i) {
+        if (chunks[i].size() > size){
+            size = chunks[i].size();
+            index = i;
+            cout << "new size: " << size << endl;
+            cout << "new index: " << index << endl;
+        }
+    }
+
+    this->walkable_faces = std::move(chunks[index]);
 }
 
 void mesh::setup_spatial_structures() {

@@ -56,7 +56,8 @@ class mesh {
         int get_faces_in_radius(const std::vector<std::vector<float>> & positions, float radius, std::vector<std::vector<int>> & indices, std::vector<std::vector<float>> & dists);
 
         bool cull_chunks(float min_area);
-        void merge_chunks();
+        bool cull_chunks(float min_area, std::vector<std::unordered_set<int>> & chunks);
+        void merge_chunks(float step_distance);
         bool prune_overhangs(float height, float step_height, float radius);
         bool prune_bottlenecks(float step_height, float radius);
 
