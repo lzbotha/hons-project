@@ -14,56 +14,60 @@ class mesh {
         aiScene * scene;
         std::unordered_set<int> walkable_faces;
         flann::Index<flann::L2_Simple<float>> * f_index;
-    
-    public:
         std::unordered_map<int, std::unordered_set<int>> neighbouring_triangles;
-                
-        mesh();
+        std::vector<std::unordered_set<int>> chunks;
+        
+        void keep_faces(std::unordered_set<int> & to_keep, aiScene * s);
+        void delete_faces(std::unordered_set<int> & to_delete);
 
-        bool import_from_file(const std::string& filepath);
-        bool export_to_file(const std::string& format, const std::string& filepath, const std::string & filename);
-
-        bool is_walkable(int f);
-
-        bool setup_neighbouring_triangles();
         void fill(
             int f,
             std::unordered_set<int> & faces,
             std::unordered_set<int> & chunk
         );
-        bool cull_chunks(int min_size);
 
-        bool rejoin_chunks(float distance);
-        void better_spill(int f, std::unordered_set<int> & to_add, float distancee, std::unordered_set<int> & chunk);
-        float distance(int face1, int face2);
-
-        // make this method private as it is used only internally
-        void keep_faces(std::unordered_set<int> & to_keep, aiScene * s);
-        void delete_faces(std::unordered_set<int> & to_delete);
-        bool keep_largest_chunk();
-
-        void clear_walkable_surfaces();
-
-        aiVector3D get_face_normal(const aiFace & face);
-        bool prune(float delta_angle, aiVector3D n = aiVector3D(0.0f, 1.0f, 0.0f));
-        bool prune_weighted_gradient(float radius, float gradient, int weighting = 1);
-
-        void setup_spatial_structures();
-
+        float get_face_area(int face);
         void get_face_center(int face, aiVector3D & center);
+        float distance(int face1, int face2);
+        aiVector3D get_face_normal(const aiFace & face);
+
+
+        void setup_chunks();
+        void connect_face_to_chunks(
+            int f, 
+            std::unordered_set<int> & to_add, 
+            float step_distance, 
+            std::unordered_set<int> & chunk
+        );
 
         int get_faces_in_radius(int face, float radius, std::vector<std::vector<int>> & indices, std::vector<std::vector<float>> & dists);
         int get_faces_in_radius(const std::vector<std::vector<float>> & positions, float radius, std::vector<std::vector<int>> & indices, std::vector<std::vector<float>> & dists);
 
-        bool cull_chunks(float min_area);
-        bool cull_chunks(float min_area, std::vector<std::unordered_set<int>> & chunks);
-        void merge_chunks(float step_distance);
-        bool prune_overhangs(float height, float step_height, float radius);
-        bool prune_bottlenecks(float step_height, float radius);
+    public:
+                
+        mesh();
+        // TODO: code a destructor to clean up all memory
 
-        float get_face_area(int face);
+        bool import_from_file(const std::string& filepath);
+        bool export_to_file(const std::string& format, const std::string& filepath, const std::string & filename);
 
-        void setup_chunks(std::vector<std::unordered_set<int>> & chunks);
+        void setup_neighbouring_triangles();
+        void setup_spatial_structures();
+
+        void walkable_by_gradient(float gradient);
+        void walkable_by_weighted_gradient(float radius, float gradient, int weighting = 1);
+
+        void remove_overhangs(float height, float step_height, float radius);
+        void remove_bottlenecks(float step_height, float radius);
+
+        void graph_rejoin(float step_distance);
+        void proximity_rejoin(float step_distance);
+
+        void remove_regions(int min_size);
+        void remove_regions(float min_area);
+        void keep_largest_region();
+
+        void clear_walkable_surfaces();
 };
 
 #endif
