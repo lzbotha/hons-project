@@ -39,7 +39,7 @@ bool mesh::import_from_file(const std::string& filepath) {
     this->scene = importer.GetOrphanedScene();
 
     if (scene->mNumMeshes != 1){
-        std::cerr << "Scene contains does not contain exactly one mesh." << std::endl;
+        std::cerr << "Scene contains does not contain exactly one mesh(" << scene->mNumMeshes << ")." << std::endl;
         return false;
     }
 
@@ -273,7 +273,8 @@ void mesh::keep_largest_region() {
 
     int size = 0;
     int index = -1;
-
+    cout << "size of chunks: " << chunks.size() << endl;
+    
     for (int i = 0; i < this->chunks.size(); ++i) {
         if (this->chunks[i].size() > size){
             size = this->chunks[i].size();
@@ -285,6 +286,9 @@ void mesh::keep_largest_region() {
         if (i != index)
             chunks[i].clear();
     }
+
+    cout << "index: " << index << endl;
+    cout << "size of chunks: " << chunks.size() << endl;
     this->walkable_faces = std::move(this->chunks[index]);
 }
 
@@ -568,7 +572,7 @@ void mesh::remove_overhangs(float height, float step_height, float radius) {
         aiVector3D f_center(0,0,0);
         this->get_face_center(f, f_center);
 
-        int num_spheres = (int) round((height - step_height) / (2 * radius));
+        int num_spheres = (int) round((height - step_height - radius) / (radius));
 
         for (int i = 0; i < num_spheres; ++i) {
             float y_val = f_center.y + step_height + radius + radius*i;
