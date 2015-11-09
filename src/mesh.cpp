@@ -127,11 +127,15 @@ void mesh::walkable_by_weighted_gradient(float radius, float gradient, int weigh
         this->get_faces_in_radius(f, radius, indices, dists);
 
         for (int n : indices[0]){
-            avg_gradient += utils::angle_between(
+            float grad = utils::angle_between(
                 up, 
                 get_face_normal(mesh->mFaces[n])
             );
-            ++count;
+
+            if (grad <= 1.5708f) {
+                avg_gradient += grad;
+                ++count;
+            }
         }
         avg_gradient /= count;
 
@@ -594,7 +598,7 @@ void mesh::remove_overhangs(float height, float step_height, float radius) {
     this->walkable_faces = std::move(to_keep);
 }
 
-void mesh::remove_bottlenecks(float step_height, float radius) {
+void mesh::remove_bottlenecks(float step_height, float radius, float min_area) {
     using namespace std;
     unordered_set<int> to_keep;
     float fetch_radius = sqrt(
@@ -629,25 +633,25 @@ void mesh::remove_bottlenecks(float step_height, float radius) {
                 area += this->get_face_area(n);
         }
 
-        if (area >= 1.57079632679f*pow(radius,2)){
+        if (area >= min_area * 3.14159265359f*pow(radius,2)){
             to_keep.insert(f);
 
-            for (int n : indices[0]) {
-                aiVector3D n_center(0.0f, 0.0f, 0.0f);
-                this->get_face_center(n, n_center);
+            // for (int n : indices[0]) {
+            //     aiVector3D n_center(0.0f, 0.0f, 0.0f);
+            //     this->get_face_center(n, n_center);
 
-                // Check if this face is in the disk
-                // check xz distance
-                if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
-                    continue;
+            //     // Check if this face is in the disk
+            //     // check xz distance
+            //     if(pow(n_center.x - f_center.x, 2) + pow(n_center.z - f_center.z, 2) > pow(radius, 2))
+            //         continue;
 
-                // check y distance
-                if (abs(n_center.y - f_center.y) > step_height)
-                    continue;
+            //     // check y distance
+            //     if (abs(n_center.y - f_center.y) > step_height)
+            //         continue;
 
-                if (walkable_faces.count(n) > 0)
-                    to_keep.insert(n);
-            }
+            //     if (walkable_faces.count(n) > 0)
+            //         to_keep.insert(n);
+            // }
         }
 
     }

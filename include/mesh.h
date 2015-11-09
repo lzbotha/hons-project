@@ -57,7 +57,7 @@ class mesh {
         void walkable_by_gradient(float gradient);
         void walkable_by_weighted_gradient(float radius, float gradient, int weighting = 1);
 
-        void remove_bottlenecks(float step_height, float radius);
+        void remove_bottlenecks(float step_height, float radius, float min_area);
         void remove_overhangs(float height, float step_height, float radius);
 
         void graph_rejoin(float step_distance);
