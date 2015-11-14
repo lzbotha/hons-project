@@ -9,7 +9,6 @@ int main() {
     using namespace std;
 
     mesh m;
-    // cout << m.import_from_file("meshes/petra/Buildings/Wadi_Farasa/Whole_Area/Wadi_Model_GPS_with_constant.obj") << endl;
     cout << m.import_from_file("meshes/test-area.obj") << endl;
     m.setup_neighbouring_triangles();
     m.setup_spatial_structures();
